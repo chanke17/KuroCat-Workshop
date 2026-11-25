@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "ev63-ghost-shell",
+  "author": "xthon",
+  "colors": {
+    "mouseBody": "#746D6E",
+    "mouseBorder": "#6B6666",
+    "wheel": "#FFFFFF",
+    "base": "#302F2F",
+    "deck": "#363334",
+    "key": "#545053",
+    "keyBorder": "#050505",
+    "accent": "#2378F3",
+    "darkText": true
+  }
+}
