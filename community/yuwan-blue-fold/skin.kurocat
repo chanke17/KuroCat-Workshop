@@ -36,5 +36,12 @@
   },
   "headSurface": "dome",
   "regions": [],
-  "marks": []
+  "marks": [
+    {
+      "space": "leftArm",
+      "kind": "polygon",
+      "color": "#D6DCE0",
+      "points": [[84, -6], [93, -7], [96, -2], [92, 3], [84, 2], [81, -2]]
+    }
+  ]
 }
