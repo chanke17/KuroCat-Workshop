@@ -1,0 +1,75 @@
+{
+  "formatVersion": 1,
+  "name": "鱼丸 · 英短蓝折耳",
+  "author": "目镜哥",
+  "palette": {
+    "body": "#767C82",
+    "bodyShade": "#62696F",
+    "belly": "#898F95",
+    "legs": "#70767C",
+    "paws": "#686E74",
+    "pawPads": "#5B5054",
+    "earOuter": "#656B71",
+    "earInner": "#A79498",
+    "nose": "#4A4F55",
+    "mouth": "#585D62",
+    "iris": "#C89B32",
+    "pupil": "#17191B",
+    "tail": "#6B7177",
+    "tailTip": "#60666C",
+    "stripes": "#5B6168",
+    "whiskers": "#E6EAEBC4",
+    "crease": "#4E555B99",
+    "outline": "#42484E55"
+  },
+  "shape": {
+    "build": "standard",
+    "bodyWidth": 1.22,
+    "headScale": 1.05,
+    "cheekFullness": 1.22,
+    "neckWidth": 1.12,
+    "earSize": 0.82,
+    "earBaseWidth": 1.08,
+    "earPointiness": 0.56,
+    "earSpacing": 1.08,
+    "tailThickness": 1.18,
+    "pawStagger": 0
+  },
+  "headSurface": "dome",
+  "regions": [
+    {
+      "space": "head",
+      "fill": "#8F9498",
+      "alpha": 0.42,
+      "anchors": [
+        { "x": 0, "y": 3, "inX": -15, "inY": 3, "outX": 15, "outY": 3 },
+        { "x": 26, "y": 18, "inX": 26, "inY": 8, "outX": 27, "outY": 30 },
+        { "x": 0, "y": 44, "inX": 18, "inY": 44, "outX": -18, "outY": 44 },
+        { "x": -26, "y": 18, "inX": -27, "inY": 30, "outX": -26, "outY": 8 }
+      ]
+    },
+    {
+      "space": "body",
+      "fill": "#878D92",
+      "alpha": 0.30,
+      "anchors": [
+        { "x": -30, "y": -104, "inX": -30, "inY": -96, "outX": -12, "outY": -104 },
+        { "x": 30, "y": -104, "inX": 12, "inY": -104, "outX": 30, "outY": -96 },
+        { "x": 26, "y": -34, "inX": 28, "inY": -64, "outX": 22, "outY": -24 },
+        { "x": 0, "y": -14, "inX": 16, "inY": -14, "outX": -16, "outY": -14 },
+        { "x": -26, "y": -34, "inX": -22, "inY": -24, "outX": -28, "outY": -64 }
+      ]
+    }
+  ],
+  "marks": [
+    { "space": "body", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.0, "brush": "soft", "softness": 0.8, "points": [[-44, -88], [-43, -72], [-42, -58]] },
+    { "space": "body", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.0, "brush": "soft", "softness": 0.8, "points": [[-22, -94], [-21, -76], [-20, -60]] },
+    { "space": "body", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.0, "brush": "soft", "softness": 0.8, "points": [[0, -98], [1, -80], [2, -62]] },
+    { "space": "body", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.0, "brush": "soft", "softness": 0.8, "points": [[22, -94], [23, -76], [24, -60]] },
+    { "space": "body", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.0, "brush": "soft", "softness": 0.8, "points": [[44, -88], [45, -72], [46, -58]] },
+    { "space": "leftArm", "kind": "stroke", "color": "#5B6168", "alpha": 0.14, "width": 2.4, "brush": "soft", "softness": 0.8, "points": [[26, -9], [27, 0], [26, 9]] },
+    { "space": "rightArm", "kind": "stroke", "color": "#5B6168", "alpha": 0.14, "width": 2.4, "brush": "soft", "softness": 0.8, "points": [[26, -9], [27, 0], [26, 9]] },
+    { "space": "tail", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.2, "brush": "soft", "softness": 0.8, "points": [[26, -8], [26, 8]] },
+    { "space": "tail", "kind": "stroke", "color": "#5B6168", "alpha": 0.16, "width": 3.2, "brush": "soft", "softness": 0.8, "points": [[52, -8], [52, 8]] }
+  ]
+}
