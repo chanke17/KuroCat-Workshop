@@ -5,9 +5,9 @@
   "palette": {
     "body": "#767C82",
     "bodyShade": "#5F666D",
-    "belly": "#8A9198",
+    "belly": "#7D848B",
     "legs": "#767C82",
-    "paws": "#676E75",
+    "paws": "#6F767D",
     "pawPads": "#595056",
     "earOuter": "#767C82",
     "earInner": "#A79498",
@@ -18,8 +18,8 @@
     "tail": "#6B7177",
     "tailTip": "#60666C",
     "whiskers": "#E6EAEBC4",
-    "crease": "#4E565C99",
-    "outline": "#545C6366"
+    "crease": "#5C646B99",
+    "outline": "#5A626955"
   },
   "shape": {
     "build": "standard",
