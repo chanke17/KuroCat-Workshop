@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "极简白",
+  "author": "asucat",
+  "colors": {
+    "mouseBody": "#FFFFFF",
+    "mouseBorder": "#FFFFFF",
+    "wheel": "#FFFFFF",
+    "base": "#FFFFFF",
+    "deck": "#FFFFFF",
+    "key": "#FFFFFF",
+    "keyBorder": "#FFFFFF",
+    "accent": "#FFFFFF",
+    "darkText": true
+  }
+}
