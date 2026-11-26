@@ -4,7 +4,7 @@
   "author": "目镜哥",
   "palette": {
     "body": "#767C82",
-    "bodyShade": "#5F666D",
+    "bodyShade": "#6E757B",
     "belly": "#767C82",
     "legs": "#767C82",
     "paws": "#767C82",
@@ -38,7 +38,7 @@
     {
       "space": "body",
       "fill": "#8A9198",
-      "alpha": 0.35,
+      "alpha": 0.20,
       "anchors": [
         { "x": -30, "y": -104, "inX": -30, "inY": -96, "outX": -12, "outY": -104 },
         { "x": 30, "y": -104, "inX": 12, "inY": -104, "outX": 30, "outY": -96 },
