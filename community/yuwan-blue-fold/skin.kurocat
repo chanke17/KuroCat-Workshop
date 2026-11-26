@@ -5,9 +5,9 @@
   "palette": {
     "body": "#767C82",
     "bodyShade": "#5F666D",
-    "belly": "#7D848B",
+    "belly": "#767C82",
     "legs": "#767C82",
-    "paws": "#6F767D",
+    "paws": "#767C82",
     "pawPads": "#595056",
     "earOuter": "#767C82",
     "earInner": "#A79498",
@@ -18,8 +18,7 @@
     "tail": "#6B7177",
     "tailTip": "#60666C",
     "whiskers": "#E6EAEBC4",
-    "crease": "#5C646B99",
-    "outline": "#5A626955"
+    "crease": "#767C8280"
   },
   "shape": {
     "build": "standard",
@@ -35,7 +34,20 @@
     "pawStagger": 0
   },
   "headSurface": "dome",
-  "regions": [],
+  "regions": [
+    {
+      "space": "body",
+      "fill": "#8A9198",
+      "alpha": 0.35,
+      "anchors": [
+        { "x": -30, "y": -104, "inX": -30, "inY": -96, "outX": -12, "outY": -104 },
+        { "x": 30, "y": -104, "inX": 12, "inY": -104, "outX": 30, "outY": -96 },
+        { "x": 26, "y": -34, "inX": 28, "inY": -64, "outX": 22, "outY": -24 },
+        { "x": 0, "y": -14, "inX": 16, "inY": -14, "outX": -16, "outY": -14 },
+        { "x": -26, "y": -34, "inX": -22, "inY": -24, "outX": -28, "outY": -64 }
+      ]
+    }
+  ],
   "marks": [
     {
       "space": "leftArm",
