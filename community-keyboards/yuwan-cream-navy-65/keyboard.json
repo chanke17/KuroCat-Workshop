@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "奶油海军蓝 65%",
+  "author": "目镜哥",
+  "colors": {
+    "mouseBody": "#E5E3E4",
+    "mouseBorder": "#2A2F43",
+    "wheel": "#B3BDD0",
+    "base": "#D6D3CC",
+    "deck": "#C9C7BF",
+    "key": "#D8D5CC",
+    "keyBorder": "#B9B4AE",
+    "accent": "#2A2F43",
+    "darkText": true
+  }
+}
