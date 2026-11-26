@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "橙染暮色",
+  "author": "asucat",
+  "colors": {
+    "mouseBody": "#26282B",
+    "mouseBorder": "#0E0F11",
+    "wheel": "#E5501E",
+    "base": "#1F2124",
+    "deck": "#2B2E33",
+    "key": "#131417",
+    "keyBorder": "#3A3E44",
+    "accent": "#E5501E",
+    "darkText": false
+  }
+}
