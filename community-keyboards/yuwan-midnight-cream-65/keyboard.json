@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "暗夜奶油 65%",
+  "author": "目镜哥",
+  "colors": {
+    "mouseBody": "#2B333E",
+    "mouseBorder": "#1A2029",
+    "wheel": "#B8B7B5",
+    "base": "#2B333E",
+    "deck": "#3B424D",
+    "key": "#CFCBC3",
+    "keyBorder": "#A9A49D",
+    "accent": "#2D2B2C",
+    "darkText": true
+  }
+}
