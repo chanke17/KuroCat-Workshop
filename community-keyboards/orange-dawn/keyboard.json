@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "橘光破晓",
+  "author": "asucat",
+  "colors": {
+    "mouseBody": "#F5F6F6",
+    "mouseBorder": "#AEB6BE",
+    "wheel": "#E5501E",
+    "base": "#CBD2D8",
+    "deck": "#E9EDF0",
+    "key": "#FAF7F1",
+    "keyBorder": "#DBD5C9",
+    "accent": "#E5501E",
+    "darkText": true
+  }
+}
