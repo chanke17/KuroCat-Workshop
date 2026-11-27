@@ -1,7 +1,34 @@
 {
-  "generatedAt": "2026-11-27T08:41:58.630Z",
-  "count": 22,
+  "generatedAt": "2026-11-27T14:18:35.889Z",
+  "count": 28,
   "keyboards": [
+    {
+      "slug": "angel-cloud-65",
+      "title": "云端天使 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "晴空蓝底座、云白键帽与暖金点缀，搭配云白鼠标；预览中的方向键带小翅膀装饰，与「云端天使」猫咪皮肤同系列。",
+      "tags": [
+        "天使",
+        "云朵",
+        "浅色"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/angel-cloud-65/keyboard.json",
+      "previewPath": "./community-keyboards/angel-cloud-65/preview.png",
+      "colors": {
+        "mouseBody": "#F5FAFE",
+        "mouseBorder": "#7894B5",
+        "wheel": "#E7B94F",
+        "base": "#7894B5",
+        "deck": "#C9DDF0",
+        "key": "#FFFDF8",
+        "keyBorder": "#D2E2F0",
+        "accent": "#E7B94F",
+        "darkText": true
+      },
+      "sizeBytes": 326
+    },
     {
       "slug": "blackberry",
       "title": "黑莓",
@@ -28,6 +55,33 @@
         "darkText": true
       },
       "sizeBytes": 310
+    },
+    {
+      "slug": "bridal-ivory-65",
+      "title": "花嫁白纱 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "象牙白键帽×玫瑰木底座×浅粉点缀的 65% 键盘配色，与「花嫁白纱」猫咪皮肤同系列。",
+      "tags": [
+        "花嫁",
+        "白色",
+        "粉色"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/bridal-ivory-65/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#FFF9F7",
+        "mouseBorder": "#7D5260",
+        "wheel": "#E8A0B4",
+        "base": "#6E4A52",
+        "deck": "#9C6B77",
+        "key": "#FFFDFA",
+        "keyBorder": "#EFD9DE",
+        "accent": "#E8A0B4",
+        "darkText": true
+      },
+      "sizeBytes": 326
     },
     {
       "slug": "celadon-mist-65",
@@ -59,6 +113,87 @@
       "sizeBytes": 322
     },
     {
+      "slug": "conan-detective-65",
+      "title": "柯南侦探猫 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "白键帽×深蓝底座×红色点缀的 65% 键盘配色，与「柯南侦探猫」猫咪皮肤同系列。",
+      "tags": [
+        "柯南",
+        "深蓝",
+        "白色"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/conan-detective-65/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#2F4666",
+        "mouseBorder": "#16213A",
+        "wheel": "#D64545",
+        "base": "#1B2A4A",
+        "deck": "#24365A",
+        "key": "#F2EFE6",
+        "keyBorder": "#C9C4B4",
+        "accent": "#D64545",
+        "darkText": true
+      },
+      "sizeBytes": 329
+    },
+    {
+      "slug": "gemini-hajimi-65",
+      "title": "Gemini 哈基米 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "Gemini 蓝×紫的 65% 键盘配色：奶白键帽、蓝紫面板、深蓝紫底座、品牌蓝 ESC/Enter、紫色滚轮，与「Gemini 哈基米」猫咪皮肤同系列。",
+      "tags": [
+        "哈基米",
+        "Gemini",
+        "蓝紫"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/gemini-hajimi-65/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#F7F5FF",
+        "mouseBorder": "#5A4A9E",
+        "wheel": "#9B72F0",
+        "base": "#2A2450",
+        "deck": "#5A4A9E",
+        "key": "#FFFFFF",
+        "keyBorder": "#D8D0F0",
+        "accent": "#4285F4",
+        "darkText": true
+      },
+      "sizeBytes": 330
+    },
+    {
+      "slug": "halloween-count-65",
+      "title": "万圣夜伯爵 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "暗紫键帽×深夜底座×南瓜橙点缀的 65% 键盘配色，与「万圣夜伯爵」猫咪皮肤同系列。",
+      "tags": [
+        "万圣节",
+        "暗色",
+        "橙色"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/halloween-count-65/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#2E2638",
+        "mouseBorder": "#16121E",
+        "wheel": "#F08C2E",
+        "base": "#1A1424",
+        "deck": "#2E2638",
+        "key": "#3A3244",
+        "keyBorder": "#56486E",
+        "accent": "#F08C2E",
+        "darkText": false
+      },
+      "sizeBytes": 330
+    },
+    {
       "slug": "midnight-galaxy",
       "title": "午夜星河",
       "author": "一路向北",
@@ -84,6 +219,33 @@
         "darkText": false
       },
       "sizeBytes": 323
+    },
+    {
+      "slug": "sakura-cardcaptor-65",
+      "title": "魔法少女小樱 65%",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "樱粉白键帽×玫瑰木底座×红金点缀的 65% 键盘配色，与「魔法少女小樱」猫咪皮肤同系列。",
+      "tags": [
+        "魔法少女",
+        "粉色",
+        "金色"
+      ],
+      "createdAt": "2026-11-27",
+      "keyboardPath": "./community-keyboards/sakura-cardcaptor-65/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#FFF6F8",
+        "mouseBorder": "#8A4A5C",
+        "wheel": "#E8B84B",
+        "base": "#5E3242",
+        "deck": "#9C5A6E",
+        "key": "#FFF9FA",
+        "keyBorder": "#F0D0DA",
+        "accent": "#D94F6B",
+        "darkText": true
+      },
+      "sizeBytes": 332
     },
     {
       "slug": "soft-meow",

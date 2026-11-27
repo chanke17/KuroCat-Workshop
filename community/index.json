@@ -1,7 +1,32 @@
 {
-  "generatedAt": "2026-11-27T08:41:58.630Z",
-  "count": 59,
+  "generatedAt": "2026-11-27T14:18:35.889Z",
+  "count": 68,
   "skins": [
+    {
+      "slug": "angel-cloud-light",
+      "title": "云端天使",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "奶白猫与晴空蓝眼，穿云白长袍、淡蓝披肩和金色云纹；内置光环、胸口天使蝴蝶结、云朵颈饰、缎带、竖琴、星光腮红、星杖与小天使铃八件贴纸。",
+      "tags": [
+        "天使",
+        "云朵",
+        "治愈",
+        "浅色"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/angel-cloud-light/skin.kurocat",
+      "previewPath": "./community/angel-cloud-light/preview.png",
+      "previewType": "png",
+      "decorationCount": 8,
+      "regionCount": 7,
+      "sizeBytes": 200893,
+      "paletteSummary": [
+        "#FFF9EE",
+        "#FFFCF5",
+        "#78BDE5"
+      ]
+    },
     {
       "slug": "binggan",
       "title": "饼干",
@@ -27,6 +52,56 @@
       ]
     },
     {
+      "slug": "bridal-white-gown",
+      "title": "花嫁白纱",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "白猫蓝眼的花嫁套装：心形领象牙白婚纱、粉丝带腰结与蕾丝裙摆，内置头纱、珍珠花冠、珍珠颈链、腮红与尾尖蝴蝶结五件贴纸。",
+      "tags": [
+        "花嫁",
+        "婚纱",
+        "白色",
+        "可爱"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/bridal-white-gown/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 5,
+      "regionCount": 4,
+      "sizeBytes": 89643,
+      "paletteSummary": [
+        "#FAF7F1",
+        "#FFFFFF",
+        "#86B9E9"
+      ]
+    },
+    {
+      "slug": "conan-detective-cat",
+      "title": "柯南侦探猫",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "蓝灰西装×白衬衫红领结的平成侦探猫：圆框眼镜、蝴蝶结变声器、足球、麻醉手表、少年侦探团徽章、太阳能滑板、放大镜与 APTX 胶囊八件贴纸，头顶还有一撮呆毛。",
+      "tags": [
+        "柯南",
+        "侦探",
+        "动漫",
+        "蓝色"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/conan-detective-cat/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 8,
+      "regionCount": 5,
+      "sizeBytes": 92293,
+      "paletteSummary": [
+        "#3D5A80",
+        "#F2EFE6",
+        "#5B8DEF"
+      ]
+    },
+    {
       "slug": "dacchan-orange-white",
       "title": "大馋猫贱贱",
       "author": "土豆子",
@@ -46,6 +121,30 @@
         "#FAF7F1",
         "#FFFFFF",
         "#E8B64A"
+      ]
+    },
+    {
+      "slug": "dexuan-distilled",
+      "title": "德玄蒸馏版",
+      "author": "ZHU",
+      "authorUrl": "",
+      "description": "一只小黑被蒸馏惹~（bushi）",
+      "tags": [
+        "黑猫",
+        "真猫还原",
+        "治愈",
+        "呆萌"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/dexuan-distilled/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 1,
+      "regionCount": 1,
+      "sizeBytes": 44848,
+      "paletteSummary": [
+        "#1A1615",
+        "#D6B17D"
       ]
     },
     {
@@ -93,6 +192,56 @@
         "#E8DBC6",
         "#F6EDDF",
         "#4080CA"
+      ]
+    },
+    {
+      "slug": "gemini-hajimi",
+      "title": "Gemini 哈基米",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "奶白素猫×蓝紫星芒配饰：颈间渐变蝴蝶结、头顶大星芒、星星魔法棒挂尾尖、星芒腮红与额头星芒、小星星伙伴，外加「曼波~」气泡与蜂蜜罐两个梗。简洁可爱，原创手绘风。",
+      "tags": [
+        "哈基米",
+        "Gemini",
+        "星芒",
+        "曼波"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/gemini-hajimi/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 8,
+      "regionCount": 0,
+      "sizeBytes": 37053,
+      "paletteSummary": [
+        "#FFF8EE",
+        "#FFFFFF",
+        "#4E8CF5"
+      ]
+    },
+    {
+      "slug": "halloween-vampire-count",
+      "title": "万圣夜伯爵",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "暗夜紫黑猫×琥珀眼的吸血鬼套装：白衬衫黑马甲红领结，内置披风领、头顶小蝙蝠、南瓜灯、小幽灵、耳尖蜘蛛网、獠牙与尾尖小南瓜七件贴纸。",
+      "tags": [
+        "万圣节",
+        "吸血鬼",
+        "南瓜",
+        "蝙蝠"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/halloween-vampire-count/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 7,
+      "regionCount": 3,
+      "sizeBytes": 72235,
+      "paletteSummary": [
+        "#3A3244",
+        "#4A4158",
+        "#F0A03C"
       ]
     },
     {
@@ -168,6 +317,30 @@
       ]
     },
     {
+      "slug": "orange-white-mimimi",
+      "title": "橘白小咪咪",
+      "author": "咪咪姐姐xixi",
+      "authorUrl": "",
+      "description": "模特是我家5岁的橘白小妹妹，她现在快9斤啦，挑食和贪吃居然能同时出现，姐姐大为惊叹！",
+      "tags": [
+        "橘白猫",
+        "田园猫",
+        "原生态小猫",
+        "很猫的猫"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/orange-white-mimimi/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 0,
+      "regionCount": 2,
+      "sizeBytes": 406325,
+      "paletteSummary": [
+        "#FFFFFF",
+        "#E5E17B"
+      ]
+    },
+    {
       "slug": "pipi-pp",
       "title": "PP",
       "author": "刘不能",
@@ -210,6 +383,54 @@
         "#E09A65",
         "#FFF9EB",
         "#FFFFFF"
+      ]
+    },
+    {
+      "slug": "sakura-cardcaptor",
+      "title": "魔法少女小樱",
+      "author": "一路向北",
+      "authorUrl": "https://github.com/378406712",
+      "description": "粉白猫绿眼的魔法少女套装：粉色战斗裙、金腰带、红胸结与白蕾丝裙摆，内置库洛牌、小可玩偶、粉色贝雷帽、飘樱花瓣、樱花颈饰、星星腮红、额头星饰与封印之杖尾饰八件贴纸。手绘风致敬。",
+      "tags": [
+        "魔法少女",
+        "小樱",
+        "库洛牌",
+        "粉色"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/sakura-cardcaptor/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 8,
+      "regionCount": 4,
+      "sizeBytes": 85828,
+      "paletteSummary": [
+        "#FBF3F4",
+        "#FFFFFF",
+        "#5DAE6B"
+      ]
+    },
+    {
+      "slug": "sandrone",
+      "title": "桑多涅",
+      "author": "面包家的嫡长子",
+      "authorUrl": "",
+      "description": "桑多涅是豪猫！！！",
+      "tags": [
+        "原神",
+        "桑多涅"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/sandrone/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 2,
+      "regionCount": 2,
+      "sizeBytes": 191484,
+      "paletteSummary": [
+        "#CEBBA1",
+        "#FAF7F1",
+        "#BDEBF5"
       ]
     },
     {
