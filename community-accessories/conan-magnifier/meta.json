@@ -1,0 +1,17 @@
+{
+  "title": "放大镜",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "金框放大镜，线索无处可藏。",
+  "tags": [
+    "柯南",
+    "放大镜",
+    "侦探"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 34,
+  "offsetY": -40,
+  "scale": 0.6,
+  "rotation": 14
+}

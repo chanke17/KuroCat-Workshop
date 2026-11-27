@@ -1,0 +1,17 @@
+{
+  "title": "圆框眼镜",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "侦探标志性的大圆框眼镜，镜片半透明带反光，不挡眼睛。",
+  "tags": [
+    "柯南",
+    "眼镜",
+    "侦探"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "face",
+  "offsetX": 0,
+  "offsetY": -6,
+  "scale": 1.0,
+  "rotation": 0
+}

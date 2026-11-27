@@ -1,0 +1,17 @@
+{
+  "title": "侦探团徽章",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "金色盾牌徽章，蓝底金星红绶带，少年侦探团集合。",
+  "tags": [
+    "柯南",
+    "徽章",
+    "侦探团"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": -52,
+  "offsetY": 8,
+  "scale": 0.75,
+  "rotation": 0
+}

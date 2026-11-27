@@ -1,0 +1,17 @@
+{
+  "title": "太阳能滑板",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "蓝底红条纹太阳能滑板，双白轮红轮毂。",
+  "tags": [
+    "柯南",
+    "滑板",
+    "道具"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": -34,
+  "offsetY": -42,
+  "scale": 0.6,
+  "rotation": -10
+}

@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "柯南侦探猫 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#2F4666",
+    "mouseBorder": "#16213A",
+    "wheel": "#D64545",
+    "base": "#1B2A4A",
+    "deck": "#24365A",
+    "key": "#F2EFE6",
+    "keyBorder": "#C9C4B4",
+    "accent": "#D64545",
+    "darkText": true
+  }
+}

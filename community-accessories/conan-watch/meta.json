@@ -1,0 +1,17 @@
+{
+  "title": "麻醉手表",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "手表型麻醉枪，表盘旁弹出细小麻醉针。",
+  "tags": [
+    "柯南",
+    "手表",
+    "道具"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "tailTip",
+  "offsetX": -2,
+  "offsetY": -4,
+  "scale": 0.7,
+  "rotation": 12
+}

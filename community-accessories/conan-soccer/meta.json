@@ -1,0 +1,17 @@
+{
+  "title": "足球",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "黑白经典足球，腰带弹出随时开踢。",
+  "tags": [
+    "柯南",
+    "足球",
+    "运动"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 50,
+  "offsetY": 8,
+  "scale": 0.8,
+  "rotation": 0
+}
