@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-27T14:18:35.889Z",
-  "count": 68,
+  "generatedAt": "2026-11-27T16:24:02.207Z",
+  "count": 69,
   "skins": [
     {
       "slug": "angel-cloud-light",
@@ -289,6 +289,28 @@
       "paletteSummary": [
         "#A58155",
         "#D9AD55"
+      ]
+    },
+    {
+      "slug": "maodou-golden-shaded",
+      "title": "毛豆",
+      "author": "十四行诗",
+      "authorUrl": "https://github.com/shenshang5142",
+      "description": "一只很呆的金渐层（11-12色，黑肉垫黑尾尖绿眼睛）",
+      "tags": [
+        "金渐层",
+        "呆萌"
+      ],
+      "createdAt": "2026-11-27",
+      "skinPath": "./community/maodou-golden-shaded/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 1,
+      "regionCount": 3,
+      "sizeBytes": 87997,
+      "paletteSummary": [
+        "#C5AA82",
+        "#FAF4EA"
       ]
     },
     {

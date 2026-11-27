@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-27T14:18:35.889Z",
-  "count": 61,
+  "generatedAt": "2026-11-27T16:24:02.207Z",
+  "count": 63,
   "accessories": [
     {
       "slug": "angel-bell",
@@ -831,6 +831,30 @@
       "sizeBytes": 4257
     },
     {
+      "slug": "heixiu",
+      "title": "嘿咻",
+      "author": "圭土土",
+      "authorUrl": "",
+      "description": "罗小黑尾巴分化出来的分身，能和小黑瞬间换位，默默守护小黑在意的人。",
+      "tags": [
+        "罗小黑",
+        "分身",
+        "黑猫",
+        "可爱"
+      ],
+      "createdAt": "2026-11-27",
+      "anchor": "headTop",
+      "offsetX": 0,
+      "offsetY": -24,
+      "scale": 0.7,
+      "rotation": 0,
+      "pngPath": "./community-accessories/heixiu/accessory.png",
+      "previewPath": null,
+      "width": 246,
+      "height": 151,
+      "sizeBytes": 36007
+    },
+    {
       "slug": "little-apple-headpiece",
       "title": "小苹果头饰",
       "author": "浅浅",
@@ -1133,6 +1157,30 @@
       "width": 702,
       "height": 702,
       "sizeBytes": 156660
+    },
+    {
+      "slug": "xiaohei",
+      "title": "小黑",
+      "author": "圭土土",
+      "authorUrl": "",
+      "description": "一只拥有空间能力、能分裂嘿咻的猫妖，温柔又强大。",
+      "tags": [
+        "罗小黑",
+        "黑猫",
+        "空间能力",
+        "可爱"
+      ],
+      "createdAt": "2026-11-27",
+      "anchor": "headTop",
+      "offsetX": 0,
+      "offsetY": -16,
+      "scale": 0.55,
+      "rotation": 0,
+      "pngPath": "./community-accessories/xiaohei/accessory.png",
+      "previewPath": null,
+      "width": 106,
+      "height": 125,
+      "sizeBytes": 15274
     },
     {
       "slug": "fool-tophat",
