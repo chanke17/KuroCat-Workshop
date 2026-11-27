@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "魔法少女小樱 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#FFF6F8",
+    "mouseBorder": "#8A4A5C",
+    "wheel": "#E8B84B",
+    "base": "#5E3242",
+    "deck": "#9C5A6E",
+    "key": "#FFF9FA",
+    "keyBorder": "#F0D0DA",
+    "accent": "#D94F6B",
+    "darkText": true
+  }
+}

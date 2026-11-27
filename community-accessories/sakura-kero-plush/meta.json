@@ -1,0 +1,17 @@
+{
+  "title": "小可玩偶",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "圆滚滚的橙色小可玩偶，白翅膀大眼睛，趴在头顶。",
+  "tags": [
+    "小樱",
+    "小可",
+    "玩偶"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": -54,
+  "offsetY": -16,
+  "scale": 0.85,
+  "rotation": 0
+}

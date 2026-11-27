@@ -1,0 +1,17 @@
+{
+  "title": "库洛牌",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "红金边框的库洛牌，太阳月亮与中央星纹，手绘风致敬。",
+  "tags": [
+    "小樱",
+    "库洛牌",
+    "魔法"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 50,
+  "offsetY": 6,
+  "scale": 0.8,
+  "rotation": 12
+}
