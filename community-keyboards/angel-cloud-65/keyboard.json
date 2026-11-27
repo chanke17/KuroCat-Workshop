@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "云端天使 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#F5FAFE",
+    "mouseBorder": "#7894B5",
+    "wheel": "#E7B94F",
+    "base": "#7894B5",
+    "deck": "#C9DDF0",
+    "key": "#FFFDF8",
+    "keyBorder": "#D2E2F0",
+    "accent": "#E7B94F",
+    "darkText": true
+  }
+}
