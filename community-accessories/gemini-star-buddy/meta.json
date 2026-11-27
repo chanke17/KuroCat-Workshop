@@ -1,0 +1,17 @@
+{
+  "title": "小星星伙伴",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "圆滚滚蓝紫小星星，带笑脸腮红，绕着头顶飞。",
+  "tags": [
+    "星星",
+    "伙伴",
+    "可爱"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 34,
+  "offsetY": -34,
+  "scale": 0.7,
+  "rotation": -10
+}

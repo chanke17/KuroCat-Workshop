@@ -1,0 +1,17 @@
+{
+  "title": "星星魔法棒",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "银白杖身蓝紫星芒杖头，系蓝蝴蝶结，挂在尾尖。",
+  "tags": [
+    "星芒",
+    "魔法棒",
+    "尾饰"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "tailTip",
+  "offsetX": -2,
+  "offsetY": -6,
+  "scale": 0.7,
+  "rotation": -14
+}
