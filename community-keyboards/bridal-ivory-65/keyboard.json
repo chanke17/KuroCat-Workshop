@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "花嫁白纱 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#FFF9F7",
+    "mouseBorder": "#7D5260",
+    "wheel": "#E8A0B4",
+    "base": "#6E4A52",
+    "deck": "#9C6B77",
+    "key": "#FFFDFA",
+    "keyBorder": "#EFD9DE",
+    "accent": "#E8A0B4",
+    "darkText": true
+  }
+}
