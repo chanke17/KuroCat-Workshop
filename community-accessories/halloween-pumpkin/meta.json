@@ -1,0 +1,17 @@
+{
+  "title": "南瓜灯",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "发光的杰克南瓜灯，三角眼锯齿笑，陪在脑袋边。",
+  "tags": [
+    "万圣节",
+    "南瓜灯",
+    "发光"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": -52,
+  "offsetY": 10,
+  "scale": 0.85,
+  "rotation": 0
+}

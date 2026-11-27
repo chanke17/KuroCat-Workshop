@@ -1,0 +1,17 @@
+{
+  "title": "尾尖小南瓜",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "迷你南瓜灯挂饰系在尾尖。",
+  "tags": [
+    "万圣节",
+    "南瓜",
+    "尾饰"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "tailTip",
+  "offsetX": -2,
+  "offsetY": -4,
+  "scale": 0.65,
+  "rotation": 12
+}

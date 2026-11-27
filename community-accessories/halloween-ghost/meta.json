@@ -1,0 +1,17 @@
+{
+  "title": "小幽灵",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "半透明的小幽灵飘在脑袋另一边，腮红奶凶。",
+  "tags": [
+    "万圣节",
+    "幽灵",
+    "可爱"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 50,
+  "offsetY": 6,
+  "scale": 0.75,
+  "rotation": 0
+}

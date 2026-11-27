@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "万圣夜伯爵 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#2E2638",
+    "mouseBorder": "#16121E",
+    "wheel": "#F08C2E",
+    "base": "#1A1424",
+    "deck": "#2E2638",
+    "key": "#3A3244",
+    "keyBorder": "#56486E",
+    "accent": "#F08C2E",
+    "darkText": false
+  }
+}
