@@ -80,12 +80,93 @@
   let activeKbTag = 'all';
   let activePromptKind = 'all';
 
+  const STATS_API_BASE = 'https://kurocat-workshop-stats.yichan521.workers.dev';
+  let activeSort = 'default'; // 'default' | 'popular'
+  let downloadCounts = {};
+
   let skinsData = [];
   let accessoriesData = [];
   let keyboardsData = [];
   let dataLoaded = false;
 
   const skinSpecCache = new Map();
+
+  function formatDownloadCount(n) {
+    const num = Number(n) || 0;
+    if (num >= 10000) return `${(num / 10000).toFixed(1).replace(/\.0$/, '')}w`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+    return String(num);
+  }
+
+  function getDownloadCount(type, slug) {
+    return Number(downloadCounts[`${type}:${slug}`]) || 0;
+  }
+
+  function renderDownloadBadgeHtml(type, slug) {
+    const key = `${type}:${slug}`;
+    const count = getDownloadCount(type, slug);
+    return `<span class="plaza-dl-badge" data-dl-key="${escapeHtml(key)}" title="累计下载 ${count} 次">` +
+      `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 2.2v7.6m0 0L4.8 6.6M8 9.8l3.2-3.2M2.8 12.6h10.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
+      `<span class="plaza-dl-num">${formatDownloadCount(count)}</span>` +
+      `</span>`;
+  }
+
+  function syncDownloadBadgeDom(key, count) {
+    const safeVal = Number(count) || 0;
+    document.querySelectorAll(`.plaza-dl-badge[data-dl-key="${CSS.escape(key)}"]`).forEach((el) => {
+      el.title = `累计下载 ${safeVal} 次`;
+      const numEl = el.querySelector('.plaza-dl-num');
+      if (numEl) numEl.textContent = formatDownloadCount(safeVal);
+    });
+  }
+
+  async function fetchDownloadCounts() {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(`${STATS_API_BASE}/api/counts`, { cache: 'no-store', signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.counts && typeof data.counts === 'object') {
+        downloadCounts = data.counts;
+      }
+    } catch (_) {
+      // Gracefully ignore stats errors so plaza stays responsive
+    }
+  }
+
+  function recordDownload(type, slug) {
+    if (!type || !slug) return;
+    const key = `${type}:${slug}`;
+    const optimistic = getDownloadCount(type, slug) + 1;
+    downloadCounts[key] = optimistic;
+    syncDownloadBadgeDom(key, optimistic);
+
+    fetch(`${STATS_API_BASE}/api/hit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, slug }),
+      keepalive: true
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.count === 'number') {
+          downloadCounts[key] = data.count;
+          syncDownloadBadgeDom(key, data.count);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function sortPlazaItems(list, type) {
+    if (activeSort !== 'popular') return list;
+    return list.slice().sort((a, b) => {
+      const diff = getDownloadCount(type, b.slug) - getDownloadCount(type, a.slug);
+      if (diff !== 0) return diff;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+  }
 
   // Play modal state
   let playModalItem = null;
@@ -358,7 +439,8 @@
       const [skinsRes, accRes, kbRes] = await Promise.all([
         fetch(`./community/index.json${bust}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { skins: [] })),
         fetch(`./community-accessories/index.json${bust}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { accessories: [] })),
-        fetch(`./community-keyboards/index.json${bust}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { keyboards: [] }))
+        fetch(`./community-keyboards/index.json${bust}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { keyboards: [] })),
+        fetchDownloadCounts()
       ]);
       skinsData = Array.isArray(skinsRes.skins) ? skinsRes.skins : [];
       accessoriesData = Array.isArray(accRes.accessories) ? accRes.accessories : [];
@@ -431,6 +513,18 @@
 
   function renderFilterRow() {
     filterRow.innerHTML = '';
+    const sortBtn = document.createElement('button');
+    sortBtn.type = 'button';
+    sortBtn.className = 'pill plaza-sort-pill' + (activeSort === 'popular' ? ' active' : '');
+    sortBtn.textContent = activeSort === 'popular' ? '🔥 按下载量' : '↕ 按下载量';
+    sortBtn.title = activeSort === 'popular' ? '当前按下载量从高到低排序，点击恢复默认排序' : '点击按下载量从高到低排序';
+    sortBtn.addEventListener('click', () => {
+      activeSort = activeSort === 'popular' ? 'default' : 'popular';
+      renderFilterRow();
+      renderActivePlazaGrid();
+    });
+    filterRow.appendChild(sortBtn);
+
     const tab = currentPlazaTab();
     if (tab === 'skins') {
       renderTagFilters(skinsData, activeSkinTag, (val) => {
@@ -482,10 +576,10 @@
 
   // --- 1. Skins Plaza ---
   function renderSkinsGrid() {
-    const filtered = skinsData.filter((item) => {
+    const filtered = sortPlazaItems(skinsData.filter((item) => {
       if (activeSkinTag !== 'all' && !(item.tags || []).includes(activeSkinTag)) return false;
       return matchesQuery(item, searchQuery);
-    });
+    }), 'skin');
     skinsGrid.innerHTML = '';
     skinsEmpty.hidden = filtered.length > 0;
     for (const item of filtered) skinsGrid.appendChild(createSkinCard(item));
@@ -601,7 +695,10 @@
         <h3>${escapeHtml(item.title)}</h3>
         <span class="plaza-date">${escapeHtml(item.createdAt || '')}</span>
       </div>
-      <div class="plaza-author-row">制作人：${authorHtml}</div>
+      <div class="plaza-author-row">
+        <span class="plaza-author-text">制作人：${authorHtml}</span>
+        ${renderDownloadBadgeHtml('skin', item.slug)}
+      </div>
       <p class="plaza-desc" title="${escapeHtml(item.description)}">${escapeHtml(item.description)}</p>
       <div class="plaza-tags">${tagsHtml}</div>
       <div class="plaza-card-actions">
@@ -627,6 +724,7 @@
       const blob = await res.blob();
       const safeName = (item.title || item.slug).replace(/[\\/:*?"<>|]/g, '_');
       triggerBlobDownload(blob, `${safeName}.kurocat`);
+      recordDownload('skin', item.slug);
       toast(`已下载「${item.title}.kurocat」，拖进换装间即可使用`);
     } catch (err) {
       toast('下载皮肤失败：' + err.message);
@@ -650,10 +748,10 @@
 
   // --- 2. Accessories Plaza ---
   function renderAccessoriesGrid() {
-    const filtered = accessoriesData.filter((item) => {
+    const filtered = sortPlazaItems(accessoriesData.filter((item) => {
       if (activeAccAnchor !== 'all' && item.anchor !== activeAccAnchor) return false;
       return matchesQuery(item, searchQuery);
-    });
+    }), 'accessory');
     accessoriesGrid.innerHTML = '';
     accessoriesEmpty.hidden = filtered.length > 0;
     for (const item of filtered) accessoriesGrid.appendChild(createAccessoryCard(item));
@@ -679,7 +777,10 @@
         <div class="plaza-card-head">
           <h3>${escapeHtml(item.title)}</h3>
         </div>
-        <div class="plaza-author-row">制作人：${authorHtml}</div>
+        <div class="plaza-author-row">
+          <span class="plaza-author-text">制作人：${authorHtml}</span>
+          ${renderDownloadBadgeHtml('accessory', item.slug)}
+        </div>
         <p class="plaza-desc" title="${escapeHtml(item.description)}">${escapeHtml(item.description)}</p>
         <div class="plaza-tags">${tagsHtml}</div>
         <div class="plaza-card-actions">
@@ -733,6 +834,7 @@
       const blob = await res.blob();
       const safeName = (item.title || item.slug).replace(/[\\/:*?"<>|]/g, '_');
       triggerBlobDownload(blob, `${safeName}.png`);
+      recordDownload('accessory', item.slug);
       toast(`已下载饰品图片「${safeName}.png」`);
     } catch (err) {
       toast('下载饰品失败：' + err.message);
@@ -741,10 +843,10 @@
 
   // --- 3. Keyboards Plaza ---
   function renderKeyboardsGrid() {
-    const filtered = keyboardsData.filter((item) => {
+    const filtered = sortPlazaItems(keyboardsData.filter((item) => {
       if (activeKbTag !== 'all' && !(item.tags || []).includes(activeKbTag)) return false;
       return matchesQuery(item, searchQuery);
-    });
+    }), 'keyboard');
     keyboardsGrid.innerHTML = '';
     keyboardsEmpty.hidden = filtered.length > 0;
     for (const item of filtered) keyboardsGrid.appendChild(createKeyboardCard(item));
@@ -809,7 +911,10 @@
         <h3>${escapeHtml(item.title)}</h3>
         <span class="plaza-date">${escapeHtml(item.createdAt || '')}</span>
       </div>
-      <div class="plaza-author-row">制作人：${authorHtml}</div>
+      <div class="plaza-author-row">
+        <span class="plaza-author-text">制作人：${authorHtml}</span>
+        ${renderDownloadBadgeHtml('keyboard', item.slug)}
+      </div>
       <p class="plaza-desc" title="${escapeHtml(item.description)}">${escapeHtml(item.description)}</p>
       <div class="plaza-tags">${tagsHtml}</div>
       <div class="plaza-card-actions">
@@ -830,6 +935,7 @@
         const blob = await res.blob();
         const safeName = (item.title || item.slug).replace(/[\\/:*?"<>|]/g, '_');
         triggerBlobDownload(blob, `${safeName}.kurokb`);
+        recordDownload('keyboard', item.slug);
         toast(`已下载「${safeName}.kurokb」，直接拖到小猫身上即可换键盘皮肤！`);
       } catch (err) {
         toast('下载失败：' + err.message);
@@ -953,9 +1059,9 @@
 
     document.getElementById('play-modal-title').textContent = item.title;
     const url = safeUrl(item.authorUrl);
-    document.getElementById('play-modal-author').innerHTML = url
+    document.getElementById('play-modal-author').innerHTML = (url
       ? `制作人：<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="author-link">${escapeHtml(item.author)}</a> · ${escapeHtml(item.createdAt || '')}`
-      : `制作人：${escapeHtml(item.author)} · ${escapeHtml(item.createdAt || '')}`;
+      : `制作人：${escapeHtml(item.author)} · ${escapeHtml(item.createdAt || '')}`) + ` · ${renderDownloadBadgeHtml('skin', item.slug)}`;
     document.getElementById('play-modal-desc').textContent = item.description || '';
     document.getElementById('play-modal-tags').innerHTML = (item.tags || [])
       .map((t) => `<span class="plaza-tag">#${escapeHtml(t)}</span>`).join('');
