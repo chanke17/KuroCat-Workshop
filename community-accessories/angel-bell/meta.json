@@ -1,0 +1,17 @@
+{
+  "title": "天使小铃",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "带小羽翼和蓝缎带环的金铃，铃面有四角星。",
+  "tags": [
+    "铃铛",
+    "羽翼",
+    "尾饰"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "tailTip",
+  "offsetX": 8,
+  "offsetY": 14,
+  "scale": 0.52,
+  "rotation": 8
+}

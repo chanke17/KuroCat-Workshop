@@ -1,0 +1,17 @@
+{
+  "title": "浮光光环",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "带细星光的浮动金环，采用透明底与柔和光晕。",
+  "tags": [
+    "天使",
+    "光环",
+    "金色"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": 0,
+  "offsetY": -22,
+  "scale": 0.95,
+  "rotation": 0
+}

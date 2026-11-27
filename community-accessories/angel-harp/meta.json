@@ -1,0 +1,17 @@
+{
+  "title": "天使小竖琴",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "暖金琴框、六根淡蓝琴弦与一对小羽翼。",
+  "tags": [
+    "竖琴",
+    "乐器",
+    "天使"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "headTop",
+  "offsetX": -52,
+  "offsetY": 10,
+  "scale": 0.72,
+  "rotation": -10
+}

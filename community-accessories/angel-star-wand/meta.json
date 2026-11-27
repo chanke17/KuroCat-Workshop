@@ -1,0 +1,17 @@
+{
+  "title": "星星魔法杖",
+  "author": "一路向北",
+  "authorUrl": "https://github.com/378406712",
+  "description": "金色大星、云白与淡蓝丝带，可作尾尖装饰。",
+  "tags": [
+    "魔法杖",
+    "星星",
+    "尾饰"
+  ],
+  "createdAt": "2026-11-27",
+  "anchor": "tailTip",
+  "offsetX": -2,
+  "offsetY": -12,
+  "scale": 0.75,
+  "rotation": -10
+}
