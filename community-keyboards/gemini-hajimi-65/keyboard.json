@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "Gemini 哈基米 65%",
+  "author": "一路向北",
+  "colors": {
+    "mouseBody": "#F7F5FF",
+    "mouseBorder": "#5A4A9E",
+    "wheel": "#9B72F0",
+    "base": "#2A2450",
+    "deck": "#5A4A9E",
+    "key": "#FFFFFF",
+    "keyBorder": "#D8D0F0",
+    "accent": "#4285F4",
+    "darkText": true
+  }
+}
