@@ -3482,7 +3482,7 @@ textarea {
 
 .floating-pet-toolbar {
   position: absolute;
-  top: -32px;
+  bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
@@ -3501,8 +3501,20 @@ textarea {
   transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
+/* Invisible hover bridge so moving the cursor from the dashed pet box up to the pill never drops :hover */
+.floating-pet-toolbar::after {
+  content: '';
+  position: absolute;
+  left: -16px;
+  right: -16px;
+  top: 100%;
+  height: 18px;
+}
+
 .workbench.mode-editing .stage-column:hover .floating-pet-toolbar,
-.workbench.mode-editing .stage-column.is-floating-active .floating-pet-toolbar {
+.workbench.mode-editing .stage-column:focus-within .floating-pet-toolbar,
+.workbench.mode-editing .stage-column.is-floating-active .floating-pet-toolbar,
+.workbench.mode-editing .floating-pet-toolbar:hover {
   opacity: 1;
   pointer-events: auto;
 }

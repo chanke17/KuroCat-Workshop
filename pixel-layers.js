@@ -1727,23 +1727,25 @@
 
   // --- Multi-Layer Project Serialization (IndexedDB & Layered .kurocat-layers.json Export/Import) ---
   function serializeProject(rawSkin) {
-    if (floatingTransform) commitFloatingTransform();
     const serParts = {};
     for (let i = 0; i < PART_KEYS.length; i++) {
       const tk = PART_KEYS[i];
       const p = parts[tk];
       serParts[tk] = {
         activeLayerId: p.activeLayerId,
-        layers: p.layers.map((l) => ({
-          id: l.id,
-          name: l.name,
-          visible: l.visible,
-          opacity: l.opacity,
-          blendMode: l.blendMode,
-          clipToBelow: l.clipToBelow,
-          alphaLock: l.alphaLock,
-          png: isCanvasNonEmpty(l.canvas) ? l.canvas.toDataURL('image/png') : null
-        }))
+        layers: p.layers.map((l) => {
+          const src = getLayerRenderSource(tk, l);
+          return {
+            id: l.id,
+            name: l.name,
+            visible: l.visible,
+            opacity: l.opacity,
+            blendMode: l.blendMode,
+            clipToBelow: l.clipToBelow,
+            alphaLock: l.alphaLock,
+            png: isCanvasNonEmpty(src) ? src.toDataURL('image/png') : null
+          };
+        })
       };
     }
     return {

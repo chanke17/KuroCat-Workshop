@@ -346,6 +346,11 @@
     }
   };
 
+  function brushPartSizeFor(partId) {
+    const viewScale = (PART_VIEW[partId] && PART_VIEW[partId].scale) || 3.55;
+    return brushSize * (3.55 / viewScale);
+  }
+
   function toPartCanvas(partId, pt, spaceOverride) {
     if (isDualPart(partId)) {
       return PART_VIEW[partId].toCanvasFor(pt, spaceOverride || getDefaultTexKeyForPart(partId));
@@ -1753,8 +1758,9 @@
     // Brush cursor preview ring
     const isPaintTool = activeTool !== 'bucket' && activeTool !== 'eyedropper' && activeTool !== 'selectRect' && activeTool !== 'selectLasso';
     if (cursorCanvasPt && !panning && !panToolActive && !spacePanHeld && isPaintTool) {
-      const wScale = PART_VIEW[partId].scale || 3.2;
-      const r = Math.max(2.2 / effScale, brushSize * wScale * (activeTool === 'airbrush' ? 0.65 : 0.5));
+      const wScale = PART_VIEW[partId].scale || 3.55;
+      const effBrush = brushPartSizeFor(partId);
+      const r = Math.max(2.2 / effScale, effBrush * wScale * (activeTool === 'airbrush' ? 0.65 : 0.5));
       ctx.save();
       ctx.beginPath();
       ctx.arc(cursorCanvasPt.x, cursorCanvasPt.y, r, 0, Math.PI * 2);
@@ -2900,7 +2906,7 @@
       const strokeOpts = {
         tool: activeTool,
         color: brushColor,
-        size: brushSize,
+        size: brushPartSizeFor(selectedPartId),
         alpha: brushAlpha
       };
       activeStrokePrimary = Layers.beginBrushStroke(targetTexKey, mapped, strokeOpts);

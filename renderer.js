@@ -4969,8 +4969,9 @@
     };
   }
 
-  // --- Universal Front-Facing Long-Cat Scruff-Lifted Drag Pose (1:1 front body/arm mapping, zero color-block scramble) ---
-  function drawNativeScruffDragCat(ctx, state, skin, eyeThemeName, lift) {
+  // --- Universal Front-Facing Long-Cat Scruff-Lifted Drag Pose (1:1 front body/arm mapping, carries keyboard & mouse/tablet) ---
+  function drawNativeScruffDragCat(ctx, state, skin, eyeThemeName, lift, kbThemeName) {
+    const carry = smoothstep(0, 0.90, lift);
     const liftS = smoothstep(0, 1, lift);
     let startle;
     if (state.isScruffDragging) {
@@ -5761,7 +5762,88 @@
     // 5. Native KuroCat face features (normal authentic almond eyes — no round bug-eyes!)
     drawHeadFeatures(ctx, headCenter, state, eyeThemeName, skin, 0, 0);
 
-    // 6. Dangling front arms hanging along the outer shoulder slopes (leaving central chest/belly 100% unobstructed!)
+    // 5b. Carry the keyboard and mouse / tablet + stylus with smooth 2D inertia (1:1 with native desktop app!)
+    const rotPt = (pt, pivot, angle) => {
+      const dx = pt.x - pivot.x, dy = pt.y - pivot.y;
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return { x: pivot.x + dx * c - dy * s, y: pivot.y + dx * s + dy * c };
+    };
+    const lerpPt = (a, b, t) => ({ x: lerpNum(a.x, b.x, t), y: lerpNum(a.y, b.y, t) });
+    const worldKeyboardGrip = rotPt(frontRightLimb.tip, scruffPinch, bodyPendulum);
+    const worldPointerGrip = rotPt(frontLeftLimb.tip, scruffPinch, bodyPendulum);
+    const keyboardHandAngle = Math.atan2(frontRightLimb.tip.y - frontRightLimb.root.y, frontRightLimb.tip.x - frontRightLimb.root.x) - Math.PI / 2;
+    const pointerHandAngle = Math.atan2(frontLeftLimb.tip.y - frontLeftLimb.root.y, frontLeftLimb.tip.x - frontLeftLimb.root.x) - Math.PI / 2;
+    const activeKbTheme = kbThemeName || 'classicMilk';
+
+    const carryTransform = (source, target, angle, drawFn) => {
+      const grip = lerpPt(source, target, carry);
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      if (Math.abs(bodyPendulum) > 0.001) {
+        ctx.translate(scruffPinch.x, scruffPinch.y);
+        ctx.rotate(-bodyPendulum);
+        ctx.translate(-scruffPinch.x, -scruffPinch.y);
+      }
+      ctx.translate(grip.x, grip.y);
+      ctx.rotate(angle * carry);
+      ctx.translate(-source.x, -source.y);
+      drawFn();
+      ctx.restore();
+    };
+
+    const kbGripDesk = screenQuadPoint(0.24, 0.12);
+    carryTransform(kbGripDesk, worldKeyboardGrip, 0.26 + keyboardHandAngle + bodyPendulum, () => {
+      drawKeyboard(ctx, state, activeKbTheme, eyeThemeName);
+    });
+
+    if (state.isTabletActive) {
+      const tabletGrip = tabletQuadPoint(0.62, 0.12);
+      const tabletBaseAngle = -0.18;
+      const tabletAngle = tabletBaseAngle + pointerHandAngle + bodyPendulum;
+      carryTransform(tabletGrip, worldPointerGrip, tabletAngle, () => {
+        drawTablet(ctx, state, activeKbTheme, eyeThemeName);
+      });
+      const parkedNib = tabletQuadPoint(0.88, -0.02);
+      const parkedTail = tabletQuadPoint(0.18, -0.02);
+      const origAngle = Math.atan2(parkedTail.y - parkedNib.y, parkedTail.x - parkedNib.x);
+      const origLen = Math.hypot(parkedTail.x - parkedNib.x, parkedTail.y - parkedNib.y);
+      const stylusBaseAngle = -2.28;
+      const heldAngle = stylusBaseAngle + pointerHandAngle + bodyPendulum;
+      const barrelGripDist = 17.0;
+      const penToTabletAngle = stylusBaseAngle - tabletBaseAngle;
+      const padContact = {
+        x: tabletGrip.x - Math.cos(penToTabletAngle) * barrelGripDist,
+        y: tabletGrip.y - Math.sin(penToTabletAngle) * barrelGripDist
+      };
+      const localContact = lerpPt(parkedNib, padContact, carry);
+      const tabletWorldGrip = lerpPt(tabletGrip, worldPointerGrip, carry);
+      const contactDelta = rotPt(localContact, tabletGrip, tabletAngle * carry);
+      const penNib = {
+        x: tabletWorldGrip.x + contactDelta.x - tabletGrip.x,
+        y: tabletWorldGrip.y + contactDelta.y - tabletGrip.y
+      };
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      if (Math.abs(bodyPendulum) > 0.001) {
+        ctx.translate(scruffPinch.x, scruffPinch.y);
+        ctx.rotate(-bodyPendulum);
+        ctx.translate(-scruffPinch.x, -scruffPinch.y);
+      }
+      ctx.translate(penNib.x, penNib.y);
+      ctx.rotate(lerpNum(origAngle, heldAngle, carry));
+      drawStylusBody(ctx, lerpNum(origLen, 35.0, carry), activeKbTheme, eyeThemeName, 0);
+      ctx.restore();
+    } else {
+      const mouseGrip = {
+        x: MOUSE_BASE.x + (state.mouseOffsetX || 0),
+        y: MOUSE_BASE.y + (state.mouseOffsetY || 0) - 10.0
+      };
+      carryTransform(mouseGrip, worldPointerGrip, -0.18 + pointerHandAngle + bodyPendulum, () => {
+        drawMouse(ctx, state, activeKbTheme);
+      });
+    }
+
+    // 6. Dangling front arms hanging over the carried props & gripping keyboard/mouse!
     drawDragLimb(frontLeftLimb);
     drawDragLimb(frontRightLimb);
 
@@ -7096,20 +7178,7 @@
 
     const scruff = clamp(state.scruffDrag || 0, 0, 1);
     if (scruff > 0.005) {
-      const kbFade = clamp(1.0 - scruff * 2.6, 0, 1);
-      if (kbFade > 0.01) {
-        ctx.save();
-        ctx.globalAlpha *= kbFade;
-        if (state.isTabletActive) {
-          drawTablet(ctx, state, kbTheme, eyeTheme);
-          drawParkedStylus(ctx, kbTheme);
-        } else {
-          drawMouse(ctx, state, kbTheme);
-        }
-        drawKeyboard(ctx, state, kbTheme, eyeTheme);
-        ctx.restore();
-      }
-      const xforms = drawNativeScruffDragCat(ctx, state, skin, eyeTheme, scruff);
+      const xforms = drawNativeScruffDragCat(ctx, state, skin, eyeTheme, scruff, kbTheme);
       drawSparkles(ctx, state);
       drawFloatingBadges(ctx, state);
       if (typeof opts.editDecorationIndex === 'number' && opts.editDecorationIndex >= 0 &&
