@@ -104,7 +104,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261128c" />
+  <link rel="stylesheet" href="styles.css?v=20261128f" />
 </head>
 <body>
   <div class="studio-shell">
@@ -275,15 +275,17 @@
             </button>
           </div>
           <button type="button" class="btn btn-ghost" id="btn-open-more-drawer" title="传猫照生成 / 模板库 / 高级设置">更多</button>
+          <button type="button" class="btn btn-changelog" id="btn-open-changelog" title="查看 v1.6.0 更新日志">v1.6.0 更新日志</button>
           <div class="help-anchor">
             <button type="button" class="icon-btn help-btn" id="btn-open-help" title="快速上手帮助" aria-label="快速上手帮助">?</button>
             <div class="help-popover" id="help-popover" hidden>
               <div class="help-pop-title">3 步画出你的桌面小猫</div>
               <ol class="help-pop-steps">
-                <li><strong>拆件点画</strong>：点「开始编辑」拆开 7 个组件（含三键踩键后腿），单击进入画布直接落笔上色，滚轮可放大细画、抬笔即存（<code>Ctrl/⌘+Z</code> 秒撤）。</li>
-                <li><strong>调骨架位置</strong>：在单组件下方调滑块，或点右侧小猫的「调骨架」直接拖圆点改双手间距、手臂根部与长短。</li>
-                <li><strong>实时试玩导出</strong>：右侧随时敲键盘/撸猫验货，满意后点右上角「导出 .kurocat」拖进桌宠即刻生效。</li>
+                <li><strong>选部位透明层直绘</strong>：在全屏画板选头部、耳朵、眼球、四肢、坐姿后爪或尾巴，多图层叠加（裁剪蒙版 / 混合模式 / 选区 / 油漆桶）直接画上去。</li>
+                <li><strong>悬浮桌宠自由预览</strong>：随时拖动小猫到网页任意位置、拖拽右下角缩放大小，或悬停点「调骨架」「转头检查」。</li>
+                <li><strong>导出通用皮肤</strong>：点右上角「导出 .kurocat」拖进 KuroCat 桌宠即刻生效，也可保存分层工程继续修改。</li>
               </ol>
+              <button type="button" class="help-pop-changelog-btn" id="btn-help-open-changelog">查看 v1.6.0 更新日志 →</button>
             </div>
           </div>
           <label class="btn btn-secondary" for="import-kurocat-input" title="导入已有 .kurocat 文件继续编辑">
@@ -326,10 +328,12 @@
                 <div class="exploded-part-pills" id="exploded-part-pills" role="tablist" aria-label="身体组件">
                   <button type="button" class="part-pill" data-exploded-part="ears">耳朵</button>
                   <button type="button" class="part-pill" data-exploded-part="head">头部</button>
+                  <button type="button" class="part-pill" data-exploded-part="eyes">眼睛</button>
                   <button type="button" class="part-pill" data-exploded-part="body">身体</button>
                   <button type="button" class="part-pill" data-exploded-part="leftArm">左手臂</button>
                   <button type="button" class="part-pill" data-exploded-part="rightArm">右手臂</button>
                   <button type="button" class="part-pill" data-exploded-part="hindLeg">后腿</button>
+                  <button type="button" class="part-pill" data-exploded-part="hindPaws">坐姿后爪</button>
                   <button type="button" class="part-pill" data-exploded-part="tail">尾巴</button>
                 </div>
               </div>
@@ -338,6 +342,8 @@
                   <input type="checkbox" id="exploded-mirror-toggle" checked />
                   <span>对称</span>
                 </label>
+                <label class="mini-btn ps-import-img-label" for="import-layer-img-input" title="导入本地图片为独立透明图层（支持移动、缩放、旋转、去白底）">+ 导入图片</label>
+                <input id="import-layer-img-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden />
                 <button type="button" class="mini-btn danger" id="btn-exploded-clear-part" title="清空当前部位画作">清空</button>
               </div>
             </div>
@@ -345,15 +351,18 @@
             <div class="exploded-canvas-wrap" id="exploded-canvas-wrap">
               <canvas id="exploded-canvas" width="600" height="460" aria-label="小猫拆件与组件画笔编辑区"></canvas>
 
-              <!-- Top-left quick mode pill: Select / Brush / Eraser + Active Layer Pill -->
+              <!-- Top-left quick mode pill: Rect / Lasso / Brush / Eraser / Bucket / Eyedropper -->
               <div class="ps-quick-tools" id="ps-quick-tools" hidden role="toolbar" aria-label="常用工具快捷切换">
-                <button type="button" class="ps-quick-btn" data-quick-tool="select" title="选择框（V）：点击或框选已画图案，拖动改位置、拖四角缩放">↖ 选择</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="selectRect" title="矩形选区（M）：框选局部像素移动、缩放或旋转">▭ 框选</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="selectLasso" title="套索选区（L）：自由圈选局部像素变换">◯ 套索</button>
                 <button type="button" class="ps-quick-btn active" data-quick-tool="draw" title="画笔（B）：切回当前画笔继续绘制">🖌 画笔</button>
-                <button type="button" class="ps-quick-btn" data-quick-tool="eraser" title="橡皮（E）：擦除当前图层笔触">橡皮</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="eraser" title="像素橡皮擦（E）：真正擦除当前透明纸像素">橡皮</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="bucket" title="像素油漆桶（G）：按容差填充封闭区域">填色</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="eyedropper" title="吸管（I）：从画布取色">吸管</button>
               </div>
-              <button type="button" class="ps-layer-pill" id="ps-active-layer-pill" hidden title="点击展开或切换当前编辑的图层">
+              <button type="button" class="ps-layer-pill" id="ps-active-layer-pill" hidden title="点击展开或切换当前编辑的透明纸图层">
                 <span class="ps-layer-pill-dot"></span>
-                <span>当前层：<strong id="ps-active-layer-name">花纹层 1</strong></span>
+                <span>当前透明纸：<strong id="ps-active-layer-name">图层 1</strong></span>
               </button>
 
               <!-- Top-right PS-style collapsible floating corner panels (Brush / Body & Colors / Layers) -->
@@ -366,7 +375,7 @@
                   <button type="button" class="ps-corner-tab" data-ps-tab="body" aria-expanded="false" title="展开/收起身材与部位配色设置">
                     <span>身材</span>
                   </button>
-                  <button type="button" class="ps-corner-tab" data-ps-tab="layers" aria-expanded="false" title="展开/收起图层叠放面板">
+                  <button type="button" class="ps-corner-tab" data-ps-tab="layers" aria-expanded="false" title="展开/收起透明纸图层叠放面板">
                     <span>图层</span>
                     <span class="ps-tab-count" id="ps-layer-count">1</span>
                   </button>
@@ -378,19 +387,20 @@
                     <button type="button" class="ps-drawer-close" id="btn-ps-drawer-close" title="收起面板" aria-label="收起面板">×</button>
                   </div>
 
-                  <!-- Tab 1: Brush Tools + Color + Size + Opacity -->
+                  <!-- Tab 1: Brush Tools + Color + Size + Opacity + Tolerance -->
                   <div class="ps-drawer-pane exploded-brush-dock" id="exploded-brush-dock" data-ps-pane="brush" hidden>
                     <div class="brush-tools-row" role="toolbar" aria-label="画笔工具">
-                      <button type="button" class="brush-btn" data-brush-tool="select" title="选择框（V）：点选或框选已画图案，拖动移位、拖四角缩放">↖ 选择框</button>
+                      <button type="button" class="brush-btn" data-brush-tool="selectRect" title="矩形选区（M）：框选像素区域，拖动移位、四角缩放、顶部旋转">▭ 框选</button>
+                      <button type="button" class="brush-btn" data-brush-tool="selectLasso" title="自由套索（L）：自由圈画选区做局部变换">◯ 套索</button>
                       <button type="button" class="brush-btn" data-brush-tool="pen" title="硬边马克笔">硬笔</button>
                       <button type="button" class="brush-btn active" data-brush-tool="calligraphy" title="毛笔：随运笔速度与压感变粗细出锋">毛笔</button>
                       <button type="button" class="brush-btn" data-brush-tool="soft" title="柔边画笔：柔和羽化边缘">柔边</button>
                       <button type="button" class="brush-btn" data-brush-tool="airbrush" title="喷枪：雾状柔边点喷，适合腮红与渐变">喷枪</button>
-                      <button type="button" class="brush-btn" data-brush-tool="smudge" title="涂抹：柔和过渡相邻毛色">涂抹</button>
+                      <button type="button" class="brush-btn" data-brush-tool="smudge" title="涂抹：柔和过渡相邻像素色彩">涂抹</button>
                       <button type="button" class="brush-btn" data-brush-tool="fillBrush" title="色块笔：自由圈画闭合填色">色块</button>
-                      <button type="button" class="brush-btn" data-brush-tool="bucket" title="油漆桶：点击自绘色块/笔触可改色，点闭合线条内可填色，点空白处改底色">油漆桶</button>
-                      <button type="button" class="brush-btn" data-brush-tool="eraser" title="橡皮擦：擦除经过的笔触或色块">橡皮</button>
-                      <button type="button" class="brush-btn" data-brush-tool="eyedropper" title="吸管：从画布吸取颜色">吸管</button>
+                      <button type="button" class="brush-btn" data-brush-tool="bucket" title="像素油漆桶（G）：容差洪水填充闭合区域">油漆桶</button>
+                      <button type="button" class="brush-btn" data-brush-tool="eraser" title="像素橡皮擦（E）：真像素擦除当前透明纸，露出下层">橡皮</button>
+                      <button type="button" class="brush-btn" data-brush-tool="eyedropper" title="吸管（I）：从画布取色">吸管</button>
                     </div>
 
                     <div class="brush-params-row">
@@ -409,6 +419,11 @@
                           <input type="range" id="exploded-brush-alpha" min="0.05" max="1" step="0.01" value="1" />
                           <span class="brush-num-unit"><input type="number" class="brush-num-input tabular" id="exploded-brush-alpha-val" min="5" max="100" step="1" value="100" aria-label="画笔透明度百分比" /><span>%</span></span>
                         </label>
+                        <label class="brush-mini-slider" id="exploded-bucket-tol-row" hidden>
+                          <span>容差</span>
+                          <input type="range" id="exploded-bucket-tol" min="0" max="140" step="1" value="32" />
+                          <span class="brush-num-unit"><input type="number" class="brush-num-input tabular" id="exploded-bucket-tol-val" min="0" max="140" step="1" value="32" aria-label="油漆桶容差" /></span>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -416,17 +431,19 @@
                   <!-- Tab 2: Body Proportions, Part Colors & Gradient -->
                   <div class="ps-drawer-pane exploded-part-inspector" id="exploded-part-inspector" data-ps-pane="body" hidden></div>
 
-                  <!-- Tab 3: PS-Style Layers Stack -->
+                  <!-- Tab 3: PS-Style Transparent Layers Stack -->
                   <div class="ps-drawer-pane ps-layers-pane" id="exploded-layers-pane" data-ps-pane="layers" hidden></div>
                 </div>
               </div>
 
-              <!-- Selection floating action bar (shown when marks/regions are selected via Select Box) -->
+              <!-- Selection / Imported Image floating action bar -->
               <div class="ps-selection-bar" id="ps-selection-bar" hidden>
-                <span class="ps-sel-info" id="ps-sel-info">已选 1 项</span>
-                <button type="button" class="ps-sel-btn" id="btn-sel-dup" title="复制一份选中图案">复制</button>
-                <button type="button" class="ps-sel-btn danger" id="btn-sel-del" title="删除选中图案（Delete）">删除</button>
-                <button type="button" class="ps-sel-btn" id="btn-sel-clear" title="取消选择（Esc）">完成</button>
+                <span class="ps-sel-info" id="ps-sel-info">已框选局部像素</span>
+                <button type="button" class="ps-sel-btn primary" id="btn-sel-commit" title="确定落位合并回当前层（Enter）">✓ 落位</button>
+                <button type="button" class="ps-sel-btn" id="btn-sel-dup" title="原地复制一份（Ctrl/⌘+D）">复制</button>
+                <button type="button" class="ps-sel-btn" id="btn-sel-debg" hidden title="自动去除白底或纯色背景">去白底</button>
+                <button type="button" class="ps-sel-btn danger" id="btn-sel-del" title="删除选区内容（Delete）">删除</button>
+                <button type="button" class="ps-sel-btn" id="btn-sel-clear" title="取消（Esc）">取消</button>
               </div>
 
               <div class="exploded-zoom-bar" id="exploded-zoom-bar" hidden role="group" aria-label="画布缩放与平移">
@@ -470,18 +487,16 @@
           </div>
         </section>
 
-        <!-- RIGHT (or Centered Hero on Initial Load): Live Interactive 2.5D Cat Simulator -->
-        <section class="stage-column">
-          <div class="stage-card">
+        <!-- RIGHT (Hero on Opening Load, Floating Transparent Desktop Pet during Editing) -->
+        <section class="stage-column" id="stage-column">
+          <div class="stage-card" id="stage-card">
             <div class="stage-header">
               <div class="stage-title-group">
-                <span class="stage-badge" id="stage-coat-badge">实时 2.5D 模拟</span>
-                <span class="stage-hint" id="stage-hint">敲键盘打字 · 轻抚撸猫 · 按住拎起</span>
+                <span class="stage-badge" id="stage-coat-badge">实时 2.5D 桌宠</span>
+                <span class="stage-hint" id="stage-hint">追视线 · 敲键盘 · 轻抚眯眼 · 按住可拖放</span>
               </div>
               <div class="stage-header-actions">
-                <button type="button" class="chip btn-skeleton" id="btn-toggle-skeleton" title="在小猫身上直接拖动圆点调整双手间距、手臂根部与长短">调骨架</button>
-                <button type="button" class="chip" id="btn-toggle-white-outline" title="切换桌宠贴纸白边预览（默认隐藏）">白边</button>
-                <button type="button" class="chip" id="btn-turn-check" title="并排看向左转、正脸、向右转，检查花纹是否跟着头走" aria-expanded="false" aria-controls="turn-check">转头检查</button>
+                <button type="button" class="chip" id="btn-turn-check-hero" title="三视图检查左转、正脸、向右转">转头检查</button>
                 <div class="backdrop-pills" role="group" aria-label="预览背景">
                   <button type="button" class="chip active" data-bg="cream">暖米</button>
                   <button type="button" class="chip" data-bg="slate">浅灰</button>
@@ -491,38 +506,57 @@
               </div>
             </div>
 
+            <!-- Hover-only micro toolbar shown when floating pet is active in editing mode -->
+            <div class="floating-pet-toolbar" id="floating-pet-toolbar" hidden>
+              <button type="button" class="fpet-btn btn-skeleton" id="btn-toggle-skeleton" title="在小猫身上拖动圆点调整双手间距、手臂根部与长短">调骨架</button>
+              <button type="button" class="fpet-btn" id="btn-turn-check" title="并排看向左转、正脸、向右转">转头检查</button>
+              <button type="button" class="fpet-btn" id="btn-pet-settings" title="悬浮桌宠外观与大小设置" aria-expanded="false">⚙</button>
+              <button type="button" class="fpet-btn" id="btn-pet-minimize" title="临时收起到角落气泡">−</button>
+            </div>
+
+            <!-- Floating pet settings popover -->
+            <div class="floating-pet-settings" id="floating-pet-settings" hidden>
+              <div class="fpet-set-row">
+                <span>桌宠大小</span>
+                <div class="fpet-size-ctrl">
+                  <button type="button" class="mini-btn" id="btn-pet-smaller" title="缩小桌宠">−</button>
+                  <span class="tabular" id="fpet-size-val">228px</span>
+                  <button type="button" class="mini-btn" id="btn-pet-larger" title="放大桌宠">+</button>
+                </div>
+              </div>
+              <div class="fpet-set-row">
+                <span>键盘配色</span>
+                <select id="keyboard-theme-select">
+                  <option value="classicMilk">经典奶白暖黄</option>
+                  <option value="midnightHacker">暗夜极客黑</option>
+                  <option value="retroCream">复古奶油灰</option>
+                </select>
+              </div>
+              <div class="fpet-set-row">
+                <span>默认瞳色</span>
+                <select id="eye-theme-select">
+                  <option value="neonChartreuse">荧光黄绿</option>
+                  <option value="siameseBlue">暹罗冰蓝</option>
+                  <option value="warmAmber">琥珀金瞳</option>
+                  <option value="softAmber">柔和琥珀</option>
+                  <option value="referenceHazel">淡金青绿</option>
+                  <option value="iceCyan">冰晶浅蓝</option>
+                </select>
+              </div>
+              <div class="fpet-set-actions">
+                <button type="button" class="mini-btn" id="btn-toggle-white-outline" title="切换桌宠贴纸白边">白边</button>
+                <button type="button" class="mini-btn" id="btn-snapshot" title="保存当前预览 PNG">存图</button>
+                <button type="button" class="mini-btn" id="btn-pet-reset-pos" title="恢复右下角默认大小与位置">归位</button>
+              </div>
+            </div>
+
             <div class="canvas-frame bg-cream" id="canvas-frame">
               <canvas id="cat-canvas" width="720" height="640" tabindex="0" aria-label="小猫实时互动预览区"></canvas>
-              <button type="button" id="btn-exit-region-edit" class="canvas-confirm-btn" title="完成锚点编辑（点击空白处也可完成）" aria-label="完成锚点编辑" hidden>
-                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M4.5 10.5l3.8 3.8 7.2-8.2"/>
-                </svg>
-              </button>
-              <div class="canvas-overlay-badge pen-banner" id="pen-banner" hidden>
-                <span id="pen-banner-text">钢笔：点一下放锚点</span>
-                <span class="pen-banner-actions">
-                  <button type="button" id="btn-pen-back" class="mini-btn">撤一个点</button>
-                  <button type="button" id="btn-pen-finish" class="mini-btn pen-finish">完成</button>
-                  <button type="button" id="btn-pen-cancel" class="mini-btn">退出</button>
-                </span>
-              </div>
-              <div class="canvas-overlay-badge skull-banner" id="skull-banner" role="status" hidden>
-                <span id="skull-banner-text">有些头部花纹画在「头壳」上，转头时不会跟着转</span>
-                <span class="pen-banner-actions">
-                  <button type="button" id="btn-skull-fix-all" class="mini-btn pen-finish">全部改为随转头</button>
-                  <button type="button" id="btn-skull-keep" class="mini-btn">保持不变</button>
-                </span>
-              </div>
               <div class="canvas-overlay-badge" id="deco-banner" hidden>
                 <span>调整配饰：拖动移动位置 · 拖右下角缩放 · 拖顶部圆点旋转</span>
                 <button type="button" id="btn-exit-deco-edit" class="mini-btn">完成调整</button>
               </div>
-            </div>
-
-            <div class="turn-check" id="turn-check" hidden>
-              <figure><canvas width="400" height="400" aria-label="向左转时的样子"></canvas><figcaption>向左转</figcaption></figure>
-              <figure><canvas width="400" height="400" aria-label="正脸的样子"></canvas><figcaption>正脸</figcaption></figure>
-              <figure><canvas width="400" height="400" aria-label="向右转时的样子"></canvas><figcaption>向右转</figcaption></figure>
+              <button type="button" class="fpet-resize-handle" id="btn-pet-resize" hidden title="拖动调整悬浮小猫大小" aria-label="调整悬浮小猫大小"></button>
             </div>
 
             <!-- Hero Opening Action Bar (visible only before user clicks Start Editing) -->
@@ -541,45 +575,35 @@
                 <button type="button" class="hero-link-btn" id="btn-hero-templates">换模板</button>
               </div>
             </div>
-
-            <div class="stage-controls">
-              <div class="stage-pose-bar" id="stage-pose-bar" role="group" aria-label="桌宠动作状态预览">
-                <button type="button" class="pose-pill active" data-pose="idle" title="真实实时互动模式：打字、撸猫、拎起、狂甩鼠标晕倒">自由互动</button>
-                <button type="button" class="pose-pill" data-pose="typing" title="自动连击敲键盘">打字</button>
-                <button type="button" class="pose-pill" data-pose="anger" title="高速狂敲触发皱眉暴怒 💢">生气</button>
-                <button type="button" class="pose-pill" data-pose="dizzy" title="螺旋晕眼 + 倒地转金星（自由模式狂甩鼠标也可触发）">晕倒</button>
-                <button type="button" class="pose-pill" data-pose="drag" title="拎起后颈 2D 惯性晃动（自由模式按住小猫直接拖）">拎起</button>
-                <button type="button" class="pose-pill" data-pose="petHead" title="轻抚猫头眯眼享受">撸猫</button>
-                <button type="button" class="pose-pill" data-pose="sleep" title="团成猫球睡觉 + 尾巴前卷">团球睡</button>
-                <button type="button" class="pose-pill" data-pose="hindFoot" title="3 键后脚踹 + 4 键尾巴敲键盘彩蛋">踩键</button>
-                <button type="button" class="pose-pill" data-pose="tablet" title="2.5D 数位板与压感触控笔">数位板</button>
-              </div>
-              <div class="stage-subbar">
-                <div class="mini-group">
-                  <span class="mini-label">键盘配色</span>
-                  <select id="keyboard-theme-select">
-                    <option value="classicMilk">经典奶白暖黄</option>
-                    <option value="midnightHacker">暗夜极客黑</option>
-                    <option value="retroCream">复古奶油灰</option>
-                  </select>
-                </div>
-                <div class="mini-group">
-                  <span class="mini-label">默认瞳色</span>
-                  <select id="eye-theme-select">
-                    <option value="neonChartreuse">荧光黄绿</option>
-                    <option value="siameseBlue">暹罗冰蓝</option>
-                    <option value="warmAmber">琥珀金瞳</option>
-                    <option value="softAmber">柔和琥珀</option>
-                    <option value="referenceHazel">淡金青绿</option>
-                    <option value="iceCyan">冰晶浅蓝</option>
-                  </select>
-                </div>
-                <button type="button" id="btn-snapshot" class="mini-btn" title="保存当前预览 PNG">保存预览图</button>
-              </div>
-            </div>
           </div>
+
+          <!-- Minimized corner bubble when user clicks "−" on floating pet -->
+          <button type="button" class="fpet-minimized-bubble" id="floating-pet-bubble" hidden title="点击展开悬浮小猫预览">
+            <span class="fpet-bubble-icon" aria-hidden="true">🐱</span>
+            <span>小猫</span>
+          </button>
         </section>
       </main>
+
+      <!-- Compact 3-View Turn Check Modal -->
+      <div class="modal-backdrop" id="turn-check-modal" hidden>
+        <div class="modal-card modal-turn-check" role="dialog" aria-modal="true" aria-label="转头三视图检查">
+          <div class="modal-head">
+            <div>
+              <h3>转头三视图检查</h3>
+              <span class="muted-note">左转 / 正脸 / 右转实时效果，检查 3D 贴图球面过渡与接缝</span>
+            </div>
+            <button type="button" class="icon-btn" id="btn-close-turn-check" aria-label="关闭">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"/></svg>
+            </button>
+          </div>
+          <div class="turn-check" id="turn-check">
+            <figure><canvas width="400" height="400" aria-label="向左转时的样子"></canvas><figcaption>向左转</figcaption></figure>
+            <figure><canvas width="400" height="400" aria-label="正脸的样子"></canvas><figcaption>正脸</figcaption></figure>
+            <figure><canvas width="400" height="400" aria-label="向右转时的样子"></canvas><figcaption>向右转</figcaption></figure>
+          </div>
+        </div>
+      </div>
 
       <!-- Progressive Disclosure Slide-Over Backdrop -->
       <div class="studio-drawer-backdrop" id="studio-drawer-backdrop" hidden></div>
@@ -598,7 +622,7 @@
             <button type="button" class="tab-btn" data-tab="templates" role="tab">模板库</button>
             <button type="button" class="tab-btn" data-tab="palette" role="tab">全局毛色</button>
             <button type="button" class="tab-btn" data-tab="shape" role="tab">全部体型</button>
-            <button type="button" class="tab-btn" data-tab="regions" role="tab">钢笔与源码</button>
+            <button type="button" class="tab-btn" data-tab="project" role="tab">多层原稿与源码</button>
           </nav>
 
           <div class="tab-panels">
@@ -798,130 +822,25 @@
               </div>
             </section>
 
-            <!-- TAB 5: Freehand Brush, Pen, Regions & Marks -->
-            <section class="tab-panel" id="tab-regions">
-              <div class="card-section pen-card">
-                <div class="section-head">
-                  <h2>手绘涂色与钢笔分区</h2>
-                  <span class="muted-note">支持自由画笔直接画在小猫身上</span>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">画在</span>
-                  <div class="pill-grid" id="pen-space-pills" role="group" aria-label="画在哪个部位">
-                    <button type="button" class="pill active" data-space="head" title="脸和头顶都画在这里，花纹会跟着转头">头 / 脸</button>
-                    <button type="button" class="pill" data-space="body">身体</button>
-                    <button type="button" class="pill" data-space="tail">尾巴</button>
-                    <button type="button" class="pill" data-space="leftArm">左胳膊</button>
-                    <button type="button" class="pill" data-space="rightArm">右胳膊</button>
-                  </div>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">方式</span>
-                  <div class="pill-grid" id="pen-mode-pills" role="group" aria-label="画法">
-                    <button type="button" class="pill" data-mode="brushFill">自由画笔色块</button>
-                    <button type="button" class="pill" data-mode="brushStroke">自由画笔线条</button>
-                    <button type="button" class="pill active" data-mode="split">分割线点一侧上色</button>
-                    <button type="button" class="pill" data-mode="closed">钢笔闭合色块</button>
-                    <button type="button" class="pill" data-mode="stroke">钢笔条纹</button>
-                  </div>
-                </div>
-                <div class="pen-row" id="pen-width-row" hidden>
-                  <span class="pen-label">粗细</span>
-                  <input type="range" id="pen-width" min="0.6" max="8" step="0.1" value="2.2" aria-label="条纹粗细" />
-                  <span class="muted-note" id="pen-width-val">2.2</span>
-                </div>
-                <label class="pen-mirror-row">
-                  <input type="checkbox" id="pen-mirror" />
-                  <span class="pen-mirror-switch" aria-hidden="true"></span>
-                  <span><strong>左右对称</strong> · 以脸 / 身体中线为轴自动画出另一半</span>
-                </label>
-                <div class="pen-row">
-                  <span class="pen-label">颜色</span>
-                  <input type="color" id="pen-color" value="#FAF4EA" aria-label="分区颜色" />
-                  <div class="pen-swatches" id="pen-swatches"></div>
-                </div>
-                <p class="pen-help" id="pen-help">在左边小猫身上画一条穿过部位的曲线，画好后点线的哪一侧，哪一侧就填上颜色。</p>
-                <button type="button" class="btn btn-primary btn-full" id="btn-pen-start">开始画</button>
-              </div>
-
+            <!-- TAB 5: Multi-Layer Source Project & Read-Only .kurocat JSON -->
+            <section class="tab-panel" id="tab-project">
               <div class="card-section">
                 <div class="section-head">
-                  <h2>快捷添加花纹分区</h2>
-                  <span class="muted-note">自动贴合下颌线与轮廓</span>
+                  <h2>多层原稿备份与迁移</h2>
+                  <span class="muted-note">本地浏览器已通过 IndexedDB 实时自动保存</span>
                 </div>
-                <div class="quick-add-grid">
-                  <button type="button" class="mini-btn" data-add-preset="whiteBelly">+ 白肚皮 / 围脖</button>
-                  <button type="button" class="mini-btn" data-add-preset="blazeFace">+ 八字白脸</button>
-                  <button type="button" class="mini-btn" data-add-preset="muzzleWhite">+ 白嘴套</button>
-                  <button type="button" class="mini-btn" data-add-preset="leftPatch">+ 左脸花斑</button>
-                  <button type="button" class="mini-btn" data-add-preset="rightPatch">+ 右脸花斑</button>
-                  <button type="button" class="mini-btn" data-add-preset="earTips">+ 深色耳尖</button>
-                  <button type="button" class="mini-btn" data-add-preset="tabbyForehead">+ 额头 M 纹</button>
-                  <button type="button" class="mini-btn" data-add-preset="tailRings">+ 尾巴环纹</button>
-                  <button type="button" class="mini-btn" data-add-preset="armRings">+ 胳膊条纹</button>
+                <p class="muted-note" style="margin:0 0 10px;line-height:1.55;">
+                  正常「导出 .kurocat」会压扁每块透明纸为轻量化 PNG；如需换设备或发给朋友保留剪贴蒙版、混合模式与全部图层继续画，可导出未合并原稿。
+                </p>
+                <div class="project-io-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-export-project">导出多层原稿 (.kurocat-layers.json)</button>
+                  <label class="btn btn-secondary btn-sm" for="import-project-input" style="cursor:pointer;">导入多层原稿</label>
+                  <input id="import-project-input" type="file" accept=".kurocat-layers.json,.json,application/json" hidden />
                 </div>
-              </div>
-
-              <div class="card-section">
-                <div class="section-head">
-                  <h2>胳膊条纹自定义</h2>
-                  <span class="muted-note">静坐与伸手打字实时跟随弯曲</span>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">部位</span>
-                  <div class="pill-grid" id="arm-stripe-sides" role="group" aria-label="胳膊条纹部位">
-                    <button type="button" class="pill active" data-arm-side="both">双臂对称</button>
-                    <button type="button" class="pill" data-arm-side="leftArm">仅左臂</button>
-                    <button type="button" class="pill" data-arm-side="rightArm">仅右臂</button>
-                  </div>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">颜色</span>
-                  <input type="color" id="arm-stripe-color" value="#6E4C32" aria-label="胳膊条纹颜色" />
-                  <span class="muted-note" id="arm-stripe-color-hex">#6E4C32</span>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">条数</span>
-                  <input type="range" id="arm-stripe-count" min="1" max="6" step="1" value="3" aria-label="胳膊条纹条数" />
-                  <span class="muted-note tabular" id="arm-stripe-count-val">3 条</span>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">粗细</span>
-                  <input type="range" id="arm-stripe-width" min="1.2" max="6.0" step="0.2" value="2.8" aria-label="胳膊条纹粗细" />
-                  <span class="muted-note tabular" id="arm-stripe-width-val">2.8</span>
-                </div>
-                <div class="pen-row">
-                  <span class="pen-label">透明</span>
-                  <input type="range" id="arm-stripe-alpha" min="0.2" max="1.0" step="0.05" value="0.78" aria-label="胳膊条纹透明度" />
-                  <span class="muted-note tabular" id="arm-stripe-alpha-val">78%</span>
-                </div>
-                <div class="action-row" style="display:flex;gap:8px;margin-top:8px;">
-                  <button type="button" class="btn btn-primary" id="btn-apply-arm-stripes" style="flex:1;">应用胳膊条纹</button>
-                  <button type="button" class="mini-btn danger" id="btn-clear-arm-stripes">清除</button>
-                </div>
-              </div>
-
-              <div class="card-section">
-                <div class="section-head">
-                  <h2>曲线分区列表 (regions)</h2>
-                  <span class="muted-note tabular" id="regions-count">0 / 64</span>
-                </div>
-                <div id="regions-list" class="layer-list"></div>
-              </div>
-
-              <div class="card-section">
-                <div class="section-head">
-                  <h2>条纹与图形 (marks)</h2>
-                  <div class="inline-actions">
-                    <span class="muted-note tabular" id="marks-count">0 / 1024</span>
-                    <button type="button" class="mini-btn danger" id="btn-clear-marks">清空条纹</button>
-                  </div>
-                </div>
-                <div id="marks-list" class="layer-list"></div>
               </div>
 
               <details class="card-section json-details">
-                <summary>查看 / 复制 .kurocat JSON 源码</summary>
+                <summary>查看 / 复制 .kurocat 导出 JSON 源码</summary>
                 <div class="json-actions">
                   <button type="button" class="mini-btn" id="btn-copy-json">复制 JSON</button>
                   <span class="muted-note tabular" id="json-size-note">0 KB</span>
@@ -1371,6 +1290,55 @@
     </div>
   </div>
 
+  <!-- v1.6.0 Changelog Modal -->
+  <div class="modal-backdrop" id="changelog-modal" hidden>
+    <div class="modal-card modal-changelog" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title">
+      <div class="modal-head changelog-head">
+        <div class="changelog-title-wrap">
+          <span class="changelog-badge">v1.6.0</span>
+          <h3 id="changelog-modal-title">KuroCat v1.6.0 更新日志</h3>
+        </div>
+        <button type="button" class="icon-btn" id="btn-close-changelog" aria-label="关闭">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 5l10 10M15 5 5 15"/></svg>
+        </button>
+      </div>
+      <div class="changelog-list">
+        <div class="changelog-item">
+          <span class="changelog-dot"></span>
+          <div class="changelog-item-body">
+            <strong>全可见区「一叠透明纸」像素图层引擎</strong>
+            <p>12 个部位统一升级为透明图层，打开模板或皮肤自动光栅化；新增裁剪蒙版、Alpha 锁定、正片叠底/滤色/叠加混合模式、多画笔、油漆桶、矩形/套索选区变换与导入图片一键去白底。</p>
+          </div>
+        </div>
+        <div class="changelog-item">
+          <span class="changelog-dot"></span>
+          <div class="changelog-item-body">
+            <strong>真 3D 球面头部 + 四肢/尾巴弯曲贴图</strong>
+            <p>头部转头与俯仰采用 3D 球面逆映射并带缓存，手臂、后腿、尾巴及拎脖子采用弯曲条带网格贴图；支持独立眼球贴图与鼻/嘴直绘，爪尖与坐姿后爪不被默认色块遮挡，工坊、官网与 macOS / Windows / Linux 桌宠四端同步。</p>
+          </div>
+        </div>
+        <div class="changelog-item">
+          <span class="changelog-dot"></span>
+          <div class="changelog-item-body">
+            <strong>全屏大画板 + 悬浮透明小猫</strong>
+            <p>创作画板全屏展开，取消预设动作栏；预览小猫化为无边框透明桌宠，可任意拖到网页角落、拖拽缩放尺寸或收起为迷你气泡。</p>
+          </div>
+        </div>
+        <div class="changelog-item">
+          <span class="changelog-dot"></span>
+          <div class="changelog-item-body">
+            <strong>.kurocat v2 导出与分层工程持久化</strong>
+            <p>兼容 1.4.0–1.5.x 皮肤，自动写入最低兼容版本 minAppVersion: "1.6.0"，支持浏览器 IndexedDB 自动保存与 .kurocat-layers.json 工程导入导出。</p>
+          </div>
+        </div>
+      </div>
+      <div class="changelog-foot">
+        <span class="changelog-foot-note">需要 KuroCat 1.6.0+ 桌宠体验全部图层皮肤效果</span>
+        <button type="button" class="btn btn-primary" id="btn-changelog-ack">知道了，开始创作</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Support / Reward Floating Card -->
   <div class="modal-backdrop reward-backdrop" id="reward-modal" hidden>
     <div class="reward-floating-card" role="dialog" aria-modal="true" aria-labelledby="reward-modal-title">
@@ -1390,13 +1358,14 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="i18n.js?v=20261127e"></script>
-  <script src="spec.js?v=20261128a"></script>
-  <script src="renderer.js?v=20261128a"></script>
+  <script src="i18n.js?v=20261128b"></script>
+  <script src="spec.js?v=20261128b"></script>
+  <script src="renderer.js?v=20261128c"></script>
+  <script src="pixel-layers.js?v=20261128b"></script>
   <script src="decorations.js?v=20261125b"></script>
   <script src="photo-analyzer.js?v=20261125b"></script>
-  <script src="app.js?v=20261127d"></script>
-  <script src="exploded-studio.js?v=20261128c"></script>
+  <script src="app.js?v=20261128d"></script>
+  <script src="exploded-studio.js?v=20261128e"></script>
   <script src="plaza.js?v=20261127a"></script>
 </body>
 </html>

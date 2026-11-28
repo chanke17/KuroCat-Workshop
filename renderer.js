@@ -1199,7 +1199,7 @@
       ctx.restore();
     }
 
-    if (skin.hasPartArt('tail') || skin.palette.tailTip) {
+      if (skin.hasPartArt('tail') || skin.palette.tailTip) {
       // Build stroked clip capsule along the active segment [tStart, tEnd] of the tail curve
       ctx.save();
       const leftPts = [], rightPts = [];
@@ -1229,7 +1229,8 @@
       for (const r of skin.regions) {
         if (r.space === 'tail') drawRegion(ctx, r, map);
       }
-      if (skin.palette.tailTip && tEnd > 0.78) {
+      const tailTex = getPartTextureSource(skin, 'tail');
+      if (!tailTex && skin.palette.tailTip && tEnd > 0.78) {
         const spTip = splitCubicBezier(curve.root, curve.c1, curve.c2, curve.tip, 0.78).second;
         ctx.strokeStyle = rgbaToCss(skin.palette.tailTip);
         ctx.lineWidth = width + 2;
@@ -1241,6 +1242,9 @@
       }
       for (const m of skin.marks) {
         if (m.space === 'tail') drawMark(ctx, m, 'butt', map);
+      }
+      if (tailTex) {
+        drawTailPartTexture(ctx, tailTex, curve, tStart, tEnd, skin.shape.tailThickness);
       }
       ctx.restore();
     }
@@ -1316,6 +1320,7 @@
       return;
     }
     const earSpace = isLeft ? 'leftEar' : 'rightEar';
+    const earTex = getPartTextureSource(skin, earSpace);
     const earGrad = skin.partGradients && skin.partGradients[earSpace];
     if (earGrad) {
       const mx = (innerBase.x + outerBase.x) * 0.5;
@@ -1330,7 +1335,7 @@
     }
     ctx.fill();
 
-    if (skin.palette.earInner) {
+    if (!earTex && skin.palette.earInner) {
       const inI = { x: innerBase.x + (tip.x - innerBase.x) * 0.24 + sign * 3.0, y: innerBase.y + (tip.y - innerBase.y) * 0.16 };
       const outI = { x: outerBase.x + (tip.x - outerBase.x) * 0.20 - sign * 3.8, y: outerBase.y + (tip.y - outerBase.y) * 0.18 };
       const tipI = { x: (innerBase.x + outerBase.x) * 0.16 + tip.x * 0.68, y: (innerBase.y + outerBase.y) * 0.14 + tip.y * 0.72 + 2.5 };
@@ -1344,7 +1349,7 @@
     }
 
     const space = isLeft ? 'leftEar' : 'rightEar';
-    if (skin.hasPartArt(space)) {
+    if (earTex || skin.hasPartArt(space)) {
       const m = { x: (innerBase.x + outerBase.x) * 0.5, y: (innerBase.y + outerBase.y) * 0.5 };
       const map = (p) => {
         const u = p.x / 100, v = -p.y / 100;
@@ -1358,6 +1363,22 @@
       ctx.clip();
       for (const r of skin.regions) if (r.space === space) drawRegion(ctx, r, map);
       for (const mk of skin.marks) if (mk.space === space) drawMark(ctx, mk, 'round', map);
+      if (earTex) {
+        const axisU = { x: outerBase.x - innerBase.x, y: outerBase.y - innerBase.y };
+        const axisV = { x: tip.x - m.x, y: tip.y - m.y };
+        const uvSpanX = PART_UV.ear.x1 - PART_UV.ear.x0;
+        const uvSpanY = PART_UV.ear.y1 - PART_UV.ear.y0;
+        const uxScale = (uvSpanX / 100) / earTex.w;
+        const vyScale = (-uvSpanY / 100) / earTex.h;
+        const ox = m.x + (PART_UV.ear.x0 / 100) * axisU.x + (-PART_UV.ear.y0 / 100) * axisV.x;
+        const oy = m.y + (PART_UV.ear.x0 / 100) * axisU.y + (-PART_UV.ear.y0 / 100) * axisV.y;
+        ctx.save();
+        ctx.transform(axisU.x * uxScale, axisU.y * uxScale, axisV.x * vyScale, axisV.y * vyScale, ox, oy);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(earTex.drawable, 0, 0, earTex.w, earTex.h);
+        ctx.restore();
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -1456,6 +1477,8 @@
 
     const hasPartRegions = skin.regions.some((r) => r.space === 'head' || r.space === 'skull' || r.space === 'body');
     const hasPartMarks = skin.marks.some((m) => m.space === 'head' || m.space === 'skull' || m.space === 'body');
+    const bodyTex = getPartTextureSource(skin, 'body');
+    const headTex = getPartTextureSource(skin, 'head');
 
     ctx.save();
     if (!pal.bodyShade) {
@@ -1466,7 +1489,7 @@
 
     const hasHeadBody = !!(pal.headBody && !sameColor(pal.headBody, pal.body));
     const hasPartGrad = skin.partGradients && (skin.partGradients.body || skin.partGradients.head);
-    if (pal.bodyShade || hasHeadBody || skin.colorpoint || hasPartRegions || hasPartMarks || hasPartGrad) {
+    if (pal.bodyShade || hasHeadBody || skin.colorpoint || hasPartRegions || hasPartMarks || hasPartGrad || bodyTex || headTex) {
       ctx.save();
       traceSilhouette();
       ctx.clip();
@@ -1605,6 +1628,49 @@
         }
       }
 
+      if (bodyTex) {
+        ctx.save();
+        drawPolyline(ctx, bodyJawSide, true, headMap);
+        ctx.clip();
+        ctx.translate(seatX, seatY);
+        ctx.rotate(bTilt);
+        ctx.scale(bw * sx, sy);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(
+          bodyTex.drawable,
+          PART_UV.body.x0,
+          PART_UV.body.y0,
+          PART_UV.body.x1 - PART_UV.body.x0,
+          PART_UV.body.y1 - PART_UV.body.y0
+        );
+        ctx.restore();
+      }
+
+      if (headTex) {
+        const yawRad = yaw * RIG.yawPerUnit;
+        const pitchRad = pitch * RIG.pitchPerUnit;
+        const warpedHead = getWarpedHeadDomeCanvas(headTex, skin.headSurface === 'dome', yawRad, pitchRad);
+        if (warpedHead) {
+          ctx.save();
+          drawPolyline(ctx, headJawSide, true, headMap);
+          ctx.clip();
+          ctx.translate(headCenter.x, headCenter.y);
+          ctx.rotate(hTilt);
+          if (hs !== 1) ctx.scale(hs, hs);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(
+            warpedHead,
+            HEAD_WARP_X0,
+            HEAD_WARP_Y0,
+            HEAD_WARP_X1 - HEAD_WARP_X0,
+            HEAD_WARP_Y1 - HEAD_WARP_Y0
+          );
+          ctx.restore();
+        }
+      }
+
       ctx.restore();
     }
     ctx.restore();
@@ -1632,15 +1698,41 @@
     const rightHindY = bd.hindLeftY + (bd.hindStaggerY - bd.hindLeftY) * stagger;
     const rightHindH = bd.hindLeftH + (bd.hindStaggerH - bd.hindLeftH) * stagger;
     const rightTucked = state.hindFootActive < 0.35;
+    const leftHindPawTex = getPartTextureSource(skin, 'leftHindPaw');
+    const rightHindPawTex = getPartTextureSource(skin, 'rightHindPaw');
 
     ctx.fillStyle = rgbaToCss(pal.hindPaw || pal.paws);
     ctx.beginPath();
     ctx.ellipse(leftHindX + hindW * 0.5, leftHindY + leftHindH * 0.5, hindW * 0.5, leftHindH * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (leftHindPawTex) {
+      const cx = leftHindX + hindW * 0.5, cy = leftHindY + leftHindH * 0.5;
+      const rx = hindW * 0.5, ry = leftHindH * 0.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(leftHindPawTex.drawable, cx - rx * 1.1, cy - ry * 1.1, rx * 2.2, ry * 2.2);
+      ctx.restore();
+    }
     if (rightTucked) {
       ctx.beginPath();
       ctx.ellipse(rightHindX + hindW * 0.5, rightHindY + rightHindH * 0.5, hindW * 0.5, rightHindH * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
+      if (rightHindPawTex) {
+        const cx = rightHindX + hindW * 0.5, cy = rightHindY + rightHindH * 0.5;
+        const rx = hindW * 0.5, ry = rightHindH * 0.5;
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(rightHindPawTex.drawable, cx - rx * 1.1, cy - ry * 1.1, rx * 2.2, ry * 2.2);
+        ctx.restore();
+      }
     }
 
     ctx.strokeStyle = skin.colorpoint ? rgbaToCss(pal.body, 0.55) : rgbaToCss(pal.crease, 0.58);
@@ -1655,10 +1747,11 @@
       ctx.stroke();
     }
 
-    if (pal.pawPads) {
+    if (pal.pawPads && !(leftHindPawTex && (!rightTucked || rightHindPawTex))) {
       ctx.fillStyle = rgbaToCss(pal.pawPads);
       const count = rightTucked ? 2 : 1;
       for (let side = 0; side < count; side++) {
+        if ((side === 0 && leftHindPawTex) || (side === 1 && rightHindPawTex)) continue;
         const cx = (side === 1 ? rightHindX : leftHindX) + hindW * 0.5;
         const cy = side === 1 ? rightHindY + rightHindH * 0.5 : leftHindY + leftHindH * 0.5;
         ctx.beginPath();
@@ -1830,47 +1923,70 @@
 
     const px = state.eyeGazeX * (4.2 - hunt * 1.2);
     const py = state.eyeGazeY * (3.6 - hunt * 1.0);
-    const normalW = 5.0 * state.pupilScale;
-    const normalH = 13.5 * Math.min(1.12, state.pupilScale);
-    const pupilW = normalW + (18.8 - normalW) * hunt;
-    const pupilH = normalH + (18.8 - normalH) * hunt;
-
-    if (!customIris && eyeThemeName === 'referenceHazel') {
-      for (let i = 0; i <= 16; i++) {
-        const t = i / 16;
-        const mix = t * t * (3 - 2 * t);
-        const rim = (1 - t) * 2.2;
-        ctx.fillStyle = `rgb(${Math.round(218 - 77 * mix)},${Math.round(178 - 33 * mix)},${Math.round(87 + 41 * mix)})`;
-        ctx.beginPath();
-        ctx.ellipse(px, py, pupilW * 0.5 + rim, pupilH * 0.5 + rim, 0, 0, Math.PI * 2);
-        ctx.fill();
+    const irisTex = getPartTextureSource(skin, isLeft ? 'leftIris' : 'rightIris');
+    const hidePupilOpt = !!(skin.partTextureOptions && skin.partTextureOptions.hideDefaultPupil);
+    if (irisTex) {
+      ctx.save();
+      if (hidePupilOpt) {
+        ctx.translate(px * 0.55, py * 0.55);
+        const irisHuntScale = 1.0 + hunt * 0.12;
+        ctx.scale(irisHuntScale, irisHuntScale);
       }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(
+        irisTex.drawable,
+        PART_UV.iris.x0,
+        PART_UV.iris.y0,
+        PART_UV.iris.x1 - PART_UV.iris.x0,
+        PART_UV.iris.y1 - PART_UV.iris.y0
+      );
+      ctx.restore();
     }
 
-    ctx.fillStyle = customPupil ? rgbaToCss(customPupil) : CAT_BLACK;
-    ctx.beginPath();
-    ctx.ellipse(px, py, pupilW * 0.5, pupilH * 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
+    if (!(irisTex && hidePupilOpt)) {
+      const normalW = 5.0 * state.pupilScale;
+      const normalH = 13.5 * Math.min(1.12, state.pupilScale);
+      const pupilW = normalW + (18.8 - normalW) * hunt;
+      const pupilH = normalH + (18.8 - normalH) * hunt;
 
-    if (hunt > 0.25) {
-      const alpha = Math.min(1, (hunt - 0.25) / 0.55) * 0.92;
-      const gr = 2.1 + hunt * 0.9;
-      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      if (!customIris && !irisTex && eyeThemeName === 'referenceHazel') {
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16;
+          const mix = t * t * (3 - 2 * t);
+          const rim = (1 - t) * 2.2;
+          ctx.fillStyle = `rgb(${Math.round(218 - 77 * mix)},${Math.round(178 - 33 * mix)},${Math.round(87 + 41 * mix)})`;
+          ctx.beginPath();
+          ctx.ellipse(px, py, pupilW * 0.5 + rim, pupilH * 0.5 + rim, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.fillStyle = customPupil ? rgbaToCss(customPupil) : CAT_BLACK;
       ctx.beginPath();
-      ctx.arc(px - pupilW * 0.22 + gr * 0.5, py - pupilH * 0.22 + gr * 0.5, gr, 0, Math.PI * 2);
+      ctx.ellipse(px, py, pupilW * 0.5, pupilH * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      if (sWide > 0.25) {
-        const sAlpha = Math.min(1, (sWide - 0.25) / 0.45) * 0.88;
-        ctx.fillStyle = `rgba(255,255,255,${sAlpha.toFixed(3)})`;
+
+      if (hunt > 0.25) {
+        const alpha = Math.min(1, (hunt - 0.25) / 0.55) * 0.92;
+        const gr = 2.1 + hunt * 0.9;
+        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
         ctx.beginPath();
-        ctx.arc(px + pupilW * 0.16, py + pupilH * 0.18, 1.45, 0, Math.PI * 2);
+        ctx.arc(px - pupilW * 0.22 + gr * 0.5, py - pupilH * 0.22 + gr * 0.5, gr, 0, Math.PI * 2);
+        ctx.fill();
+        if (sWide > 0.25) {
+          const sAlpha = Math.min(1, (sWide - 0.25) / 0.45) * 0.88;
+          ctx.fillStyle = `rgba(255,255,255,${sAlpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(px + pupilW * 0.16, py + pupilH * 0.18, 1.45, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (siameseBlue) {
+        ctx.fillStyle = 'rgba(255,255,255,0.86)';
+        ctx.beginPath();
+        ctx.arc(px - 2.9, py - 3.6, 1.65, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else if (siameseBlue) {
-      ctx.fillStyle = 'rgba(255,255,255,0.86)';
-      ctx.beginPath();
-      ctx.arc(px - 2.9, py - 3.6, 1.65, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     ctx.restore();
@@ -1895,8 +2011,9 @@
     drawEye3D(ctx, true, yawRad, pitchRad, state, eyeThemeName, skin, scruffStartle, scruffWide);
     drawEye3D(ctx, false, yawRad, pitchRad, state, eyeThemeName, skin, scruffStartle, scruffWide);
 
-    const showNose = !!(skin.palette.nose && (skin.palette.nose.a === undefined || skin.palette.nose.a >= 0.01));
-    const showMouth = !!(skin.palette.mouth && (skin.palette.mouth.a === undefined || skin.palette.mouth.a >= 0.01));
+    const pto = skin.partTextureOptions || {};
+    const showNose = !pto.hideDefaultNose && !!(skin.palette.nose && (skin.palette.nose.a === undefined || skin.palette.nose.a >= 0.01));
+    const showMouth = !pto.hideDefaultMouth && !!(skin.palette.mouth && (skin.palette.mouth.a === undefined || skin.palette.mouth.a >= 0.01));
     if (showNose || showMouth) {
       ctx.save();
       if (showNose) {
@@ -2124,6 +2241,8 @@
     }
 
     ctx.save();
+    const limbSpace = frontPaw ? (!outlineOnLeft ? 'leftArm' : 'rightArm') : 'hindLeg';
+    const limbTex = getPartTextureSource(skin, limbSpace);
     if (pal.points) {
       const mid = pal.pointsMid || pal.points;
       ctx.save();
@@ -2143,6 +2262,29 @@
       ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      if (limbTex) {
+        const isLeftArm = frontPaw && !outlineOnLeft;
+        const sideSign = isLeftArm ? 1 : -1;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(leftEdge[0].x, leftEdge[0].y);
+        for (let i = 1; i < leftEdge.length; i++) ctx.lineTo(leftEdge[i].x, leftEdge[i].y);
+        for (let i = rightEdge.length - 1; i >= 0; i--) ctx.lineTo(rightEdge[i].x, rightEdge[i].y);
+        const tan0 = quadTangent(start, control, end, 0);
+        const len0 = Math.max(0.001, Math.hypot(tan0.x, tan0.y));
+        ctx.quadraticCurveTo(
+          start.x - (tan0.x / len0) * startW * 0.5,
+          start.y - (tan0.y / len0) * startW * 0.5,
+          leftEdge[0].x, leftEdge[0].y
+        );
+        ctx.closePath();
+        ctx.moveTo(end.x + pawR, end.y);
+        ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
+        ctx.clip();
+        drawLimbPartTexture(ctx, limbTex, start, control, end, startW, endW, sideSign);
+        ctx.restore();
+      }
+
       const outerEdge = outlineOnLeft ? rightEdge : leftEdge;
       ctx.strokeStyle = rgbaToCss(lineColor, 0.72);
       ctx.lineWidth = 1.25;
@@ -2153,7 +2295,6 @@
       ctx.stroke();
     } else {
       traceLimb();
-      const limbSpace = frontPaw ? (!outlineOnLeft ? 'leftArm' : 'rightArm') : 'hindLeg';
       const limbBaseCol = frontPaw ? pal.legs : (pal.hindLeg || pal.legs);
       const limbPawCol = frontPaw ? pal.paws : (pal.hindPaw || pal.paws);
       const limbGrad = skin.partGradients && skin.partGradients[limbSpace];
@@ -2203,7 +2344,35 @@
         ctx.restore();
       }
 
-      if (sameColor(limbPawCol, limbBaseCol)) {
+      if (limbTex) {
+        // Fill paw base underneath texture first, then draw unified limb+paw texture so paw tips are never covered
+        ctx.fillStyle = rgbaToCss(limbBaseCol);
+        ctx.beginPath();
+        ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const isLeftArm = frontPaw && !outlineOnLeft;
+        const sideSign = isLeftArm ? 1 : -1;
+        ctx.save();
+        // Combined CW union path (leftEdge down -> rightEdge up, plus CW paw ellipse)
+        ctx.beginPath();
+        ctx.moveTo(leftEdge[0].x, leftEdge[0].y);
+        for (let i = 1; i < leftEdge.length; i++) ctx.lineTo(leftEdge[i].x, leftEdge[i].y);
+        for (let i = rightEdge.length - 1; i >= 0; i--) ctx.lineTo(rightEdge[i].x, rightEdge[i].y);
+        const tan0 = quadTangent(start, control, end, 0);
+        const len0 = Math.max(0.001, Math.hypot(tan0.x, tan0.y));
+        ctx.quadraticCurveTo(
+          start.x - (tan0.x / len0) * startW * 0.5,
+          start.y - (tan0.y / len0) * startW * 0.5,
+          leftEdge[0].x, leftEdge[0].y
+        );
+        ctx.closePath();
+        ctx.moveTo(end.x + pawR, end.y);
+        ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
+        ctx.clip();
+        drawLimbPartTexture(ctx, limbTex, start, control, end, startW, endW, sideSign);
+        ctx.restore();
+      } else if (sameColor(limbPawCol, limbBaseCol)) {
         ctx.fillStyle = rgbaToCss(limbBaseCol);
         ctx.beginPath();
         ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
@@ -2265,6 +2434,8 @@
       ctx.closePath();
     };
 
+    const armSpace = isLeft ? 'leftArm' : 'rightArm';
+    const armTex = getPartTextureSource(skin, armSpace);
     if (pal.points) {
       const mid = pal.pointsMid || pal.points;
       ctx.save();
@@ -2276,9 +2447,11 @@
       g.addColorStop(0.82, rgbaToCss(pal.points, 1));
       ctx.fillStyle = g;
       ctx.fillRect(bottom.x - 9, top.y - 1, 18, bottom.y - top.y + 8);
+      if (armTex) {
+        drawIdleArmPartTexture(ctx, armTex, top, bottom, sign);
+      }
       ctx.restore();
     } else {
-      const armSpace = isLeft ? 'leftArm' : 'rightArm';
       const armGrad = skin.partGradients && skin.partGradients[armSpace];
       if (armGrad) {
         ctx.save();
@@ -2330,9 +2503,30 @@
         ctx.stroke();
         ctx.restore();
       }
-      ctx.fillStyle = rgbaToCss(pal.paws);
-      roundedRectPath(ctx, bottom.x - 7.5, bottom.y - 13, 15, 18, 6.5);
-      ctx.fill();
+      if (armTex) {
+        ctx.save();
+        // Clip using evenodd? No, single unified polygon tracing outer edge -> bottom paw round -> inner edge (always closed cleanly)
+        ctx.beginPath();
+        const oTop = { x: top.x + sign * 8.5, y: top.y };
+        const oCtrl = { x: top.x + sign * 9.5, y: (top.y + bottom.y) * 0.5 };
+        const oBot = { x: bottom.x + sign * 7.5, y: bottom.y - 1 };
+        const iBot = { x: bottom.x - sign * 6.0, y: bottom.y - 1 };
+        const iCtrl = { x: top.x - sign * 6.5, y: (top.y + bottom.y) * 0.5 };
+        const iTop = { x: top.x - sign * 7.0, y: top.y + 4 };
+        ctx.moveTo(oTop.x, oTop.y);
+        ctx.quadraticCurveTo(oCtrl.x, oCtrl.y, oBot.x, oBot.y);
+        ctx.quadraticCurveTo(bottom.x + sign * 7.5, bottom.y + 5.2, bottom.x + sign * 0.8, bottom.y + 5.2);
+        ctx.quadraticCurveTo(bottom.x - sign * 6.8, bottom.y + 5.2, iBot.x, iBot.y);
+        ctx.quadraticCurveTo(iCtrl.x, iCtrl.y, iTop.x, iTop.y);
+        ctx.closePath();
+        ctx.clip();
+        drawIdleArmPartTexture(ctx, armTex, top, bottom, sign);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = rgbaToCss(pal.paws);
+        roundedRectPath(ctx, bottom.x - 7.5, bottom.y - 13, 15, 18, 6.5);
+        ctx.fill();
+      }
     }
 
     ctx.strokeStyle = isClassicBlackRim(skin) ? 'rgba(255,255,255,0.75)' : rgbaToCss(pal.crease);
@@ -5119,6 +5313,31 @@
         };
         for (const r of skin.regions) if (r.space === limb.armSpace) drawRegion(ctx, r, armMap);
         for (const mk of skin.marks) if (mk.space === limb.armSpace) drawMark(ctx, mk, 'round', armMap);
+        const dragLimbTex = getPartTextureSource(skin, limb.armSpace);
+        if (dragLimbTex) {
+          const samples = [];
+          const dxD = limb.tip.x - limb.root.x, dyD = limb.tip.y - limb.root.y;
+          const lenD = Math.max(1, Math.hypot(dxD, dyD));
+          const uxD = dxD / lenD, uyD = dyD / lenD;
+          const spanScale = lenD / 100.0;
+          const steps = 16;
+          for (let i = 0; i <= steps; i++) {
+            const xCoord = PART_UV.limb.x0 + (i / steps) * (PART_UV.limb.x1 - PART_UV.limb.x0);
+            const tRaw = xCoord / 100.0;
+            const tC = clamp(tRaw, 0, 1);
+            const omt = 1 - tC;
+            const lx = omt * omt * gGeo.p0L.x + 2 * omt * tC * gGeo.midL.x + tC * tC * gGeo.p1L.x;
+            const ly = omt * omt * gGeo.p0L.y + 2 * omt * tC * gGeo.midL.y + tC * tC * gGeo.p1L.y;
+            const rx = omt * omt * gGeo.p0R.x + 2 * omt * tC * gGeo.midR.x + tC * tC * gGeo.p1R.x;
+            const ry = omt * omt * gGeo.p0R.y + 2 * omt * tC * gGeo.midR.y + tC * tC * gGeo.p1R.y;
+            let cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
+            if (tRaw < 0) { cx += uxD * (tRaw * 100.0) * spanScale; cy += uyD * (tRaw * 100.0) * spanScale; }
+            else if (tRaw > 1) { cx += uxD * ((tRaw - 1) * 100.0) * spanScale; cy += uyD * ((tRaw - 1) * 100.0) * spanScale; }
+            const hx = (rx - lx) * 0.5 * 1.4 * sign, hy = (ry - ly) * 0.5 * 1.4 * sign;
+            samples.push({ left: { x: cx + hx, y: cy + hy }, right: { x: cx - hx, y: cy - hy }, xCoord });
+          }
+          blitStripMesh(ctx, dragLimbTex, samples, PART_UV.limb);
+        }
       }
       ctx.restore();
 
@@ -5253,7 +5472,8 @@
       }
       ctx.lineCap = 'round';
     }
-    if (pal.tailTip && !isDazed) {
+    const dragTailTex = getPartTextureSource(skin, 'tail');
+    if (pal.tailTip && !isDazed && !dragTailTex) {
       // Tail tip = last 22% of the tail curve (de Casteljau split at t = 0.78, same as the idle tail tip).
       // A straight chord only touches the curve at the tip and cuts across the bend, so the colour ended up
       // outside the silhouette on the convex side and left fur showing on the inside.
@@ -5266,6 +5486,33 @@
       ctx.moveTo(ts.x, ts.y);
       ctx.bezierCurveTo(te.x, te.y, tq.x, tq.y, tailTip.x, tailTip.y);
       ctx.stroke();
+    }
+    if (dragTailTex && !isDazed) {
+      const dragTailCurve = { root: tailPivot, c1: tailC1, c2: tailC2, tip: tailTip };
+      const halfT = tailW * 0.5 + 0.3;
+      const lPts = [], rPts = [];
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20;
+        const u = 1 - t;
+        const qx = u*u*u*tailPivot.x + 3*u*u*t*tailC1.x + 3*u*t*t*tailC2.x + t*t*t*tailTip.x;
+        const qy = u*u*u*tailPivot.y + 3*u*u*t*tailC1.y + 3*u*t*t*tailC2.y + t*t*t*tailTip.y;
+        const dx = 3*u*u*(tailC1.x - tailPivot.x) + 6*u*t*(tailC2.x - tailC1.x) + 3*t*t*(tailTip.x - tailC2.x);
+        const dy = 3*u*u*(tailC1.y - tailPivot.y) + 6*u*t*(tailC2.y - tailC1.y) + 3*t*t*(tailTip.y - tailC2.y);
+        const len = Math.max(0.001, Math.hypot(dx, dy));
+        lPts.push({ x: qx - (dy / len) * halfT, y: qy + (dx / len) * halfT });
+        rPts.push({ x: qx + (dy / len) * halfT, y: qy - (dx / len) * halfT });
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(lPts[0].x, lPts[0].y);
+      for (let i = 1; i < lPts.length; i++) ctx.lineTo(lPts[i].x, lPts[i].y);
+      const tipAngleD = Math.atan2(tailTip.y - tailC2.y, tailTip.x - tailC2.x);
+      ctx.arc(tailTip.x, tailTip.y, halfT, tipAngleD + Math.PI * 0.5, tipAngleD - Math.PI * 0.5, true);
+      for (let i = rPts.length - 1; i >= 0; i--) ctx.lineTo(rPts[i].x, rPts[i].y);
+      ctx.closePath();
+      ctx.clip();
+      drawTailPartTexture(ctx, dragTailTex, dragTailCurve, 0, 1, tailW / Math.max(1, getBuild(skin).tailWidth));
+      ctx.restore();
     }
     ctx.restore();
 
@@ -5447,6 +5694,44 @@
             drawMark(ctx, m, 'round', mapFn);
             ctx.restore();
           }
+        }
+      }
+
+      const dragBodyTex = getPartTextureSource(skin, 'body');
+      if (dragBodyTex) {
+        const samples = [];
+        const y0 = PART_UV.body.y0, y1 = PART_UV.body.y1;
+        const rows = 14;
+        for (let i = 0; i <= rows; i++) {
+          const py = y0 + (i / rows) * (y1 - y0);
+          samples.push({
+            left: dragBodyMap({ x: PART_UV.body.x0, y: py }),
+            right: dragBodyMap({ x: PART_UV.body.x1, y: py }),
+            xCoord: py
+          });
+        }
+        ctx.save();
+        drawPolyline(ctx, dragBodyJawSide, true, headMap);
+        ctx.clip();
+        blitStripMesh(ctx, dragBodyTex, samples, { x0: y0, x1: y1 }, true);
+        ctx.restore();
+      }
+      const dragHeadTex = getPartTextureSource(skin, 'head');
+      if (dragHeadTex) {
+        const yawRadD = (state.headYaw || 0) * RIG.yawPerUnit;
+        const pitchRadD = (state.headPitch || 0) * RIG.pitchPerUnit;
+        const warpedHeadD = getWarpedHeadDomeCanvas(dragHeadTex, skin.headSurface === 'dome', yawRadD, pitchRadD);
+        if (warpedHeadD) {
+          ctx.save();
+          drawPolyline(ctx, dragHeadJawSide, true, headMap);
+          ctx.clip();
+          ctx.translate(headCenter.x, headCenter.y);
+          ctx.rotate(state.headTilt || 0);
+          if (hs !== 1) ctx.scale(hs, hs);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(warpedHeadD, HEAD_WARP_X0, HEAD_WARP_Y0, HEAD_WARP_X1 - HEAD_WARP_X0, HEAD_WARP_Y1 - HEAD_WARP_Y0);
+          ctx.restore();
         }
       }
       ctx.restore();
@@ -6765,6 +7050,7 @@
     const kbTheme = opts.kbTheme || 'classicMilk';
     const eyeTheme = opts.eyeTheme || (skin.colorpoint ? 'siameseBlue' : 'neonChartreuse');
     stateWhiteOutline = opts.whiteOutline === true;
+    preloadPartTextures(skin);
 
     ctx.save();
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -7397,6 +7683,442 @@
     }
   }
 
+  // --- 1.6.0 Transparent-Sheet Part Textures + 3D Dome & Curved Strip Warpers ---
+  const PART_UV = {
+    head:    { x0: -76,  y0: -66,  x1: 76,  y1: 66 },
+    body:    { x0: -72,  y0: -132, x1: 72,  y1: 24 },
+    ear:     { x0: -75,  y0: -125, x1: 75,  y1: 25 },
+    limb:    { x0: -8,   y0: -14,  x1: 122, y1: 14 },
+    tail:    { x0: -10,  y0: -10,  x1: 114, y1: 10 },
+    iris:    { x0: -14,  y0: -13,  x1: 14,  y1: 13 },
+    hindPaw: { x0: -1.1, y0: -1.1, x1: 1.1, y1: 1.1 }
+  };
+  const HEAD_WARP_W = 256;
+  const HEAD_WARP_H = 232;
+  const HEAD_WARP_X0 = -64;
+  const HEAD_WARP_Y0 = -58;
+  const HEAD_WARP_X1 = 64;
+  const HEAD_WARP_Y1 = 58;
+
+  const partTexDecodeCache = new Map();
+  const partLiveTexCache = new Map();
+  const headDomeWarpCache = new Map();
+  let stripScratchCanvas = null;
+  let stripScratchCtx = null;
+
+  function buildPremulFromCanvas(srcCanvas, w, h) {
+    if (!w || !h) return null;
+    let c = srcCanvas;
+    let ctx2d = null;
+    if (typeof srcCanvas.getContext === 'function') {
+      ctx2d = srcCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    if (!ctx2d) {
+      c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      ctx2d = c.getContext('2d', { willReadFrequently: true });
+      ctx2d.drawImage(srcCanvas, 0, 0, w, h);
+    }
+    let data;
+    try {
+      data = ctx2d.getImageData(0, 0, w, h).data;
+    } catch (_) {
+      return null;
+    }
+    const n = w * h;
+    const premul = new Uint8Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const o = i * 4;
+      const a = data[o + 3];
+      if (a === 0) continue;
+      if (a === 255) {
+        premul[o] = data[o];
+        premul[o + 1] = data[o + 1];
+        premul[o + 2] = data[o + 2];
+        premul[o + 3] = 255;
+      } else {
+        premul[o] = (data[o] * a + 127) / 255;
+        premul[o + 1] = (data[o + 1] * a + 127) / 255;
+        premul[o + 2] = (data[o + 2] * a + 127) / 255;
+        premul[o + 3] = a;
+      }
+    }
+    return premul;
+  }
+
+  function hashShortKey(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return `${str.length}:${(h >>> 0).toString(16)}`;
+  }
+
+  function getPartTextureSource(skin, key) {
+    if (!skin) return null;
+    const live = skin._livePartTextures && skin._livePartTextures[key];
+    if (live && live.width > 0 && live.height > 0) {
+      const rev = (skin._livePartTextureRev && skin._livePartTextureRev[key]) || 0;
+      let entry = partLiveTexCache.get(key);
+      if (!entry || entry.drawable !== live || entry.rev !== rev) {
+        const premul = buildPremulFromCanvas(live, live.width, live.height);
+        entry = {
+          drawable: live,
+          w: live.width,
+          h: live.height,
+          premul,
+          rev,
+          cacheKey: `live:${key}:${rev}`
+        };
+        partLiveTexCache.set(key, entry);
+      }
+      return entry;
+    }
+    const b64 = skin.partTextures && skin.partTextures[key];
+    if (!b64) return null;
+    let entry = partTexDecodeCache.get(b64);
+    if (!entry) {
+      const img = new Image();
+      entry = { img, premul: null, w: 0, h: 0, drawable: null, cacheKey: 'png:' + hashShortKey(b64) };
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (w > 0 && h > 0) {
+          const c = document.createElement('canvas');
+          c.width = w;
+          c.height = h;
+          const cx = c.getContext('2d', { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, w, h);
+          entry.w = w;
+          entry.h = h;
+          entry.drawable = c;
+          entry.premul = buildPremulFromCanvas(c, w, h);
+        }
+      };
+      img.src = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+      partTexDecodeCache.set(b64, entry);
+      if (partTexDecodeCache.size > 96) {
+        const oldest = partTexDecodeCache.keys().next().value;
+        partTexDecodeCache.delete(oldest);
+      }
+    }
+    return entry.drawable && entry.w > 0 ? entry : null;
+  }
+
+  function preloadPartTextures(skin) {
+    if (!skin || !skin.partTextures) return;
+    for (const k of Object.keys(skin.partTextures)) {
+      if (skin.partTextures[k]) getPartTextureSource(skin, k);
+    }
+  }
+
+  function samplePremulBilinear(src, w, h, u, v, out) {
+    if (!src || u < 0 || u > 1 || v < 0 || v > 1) return false;
+    const sx = u * (w - 1);
+    const sy = v * (h - 1);
+    const x0 = Math.floor(sx), y0 = Math.floor(sy);
+    const x1 = x0 + 1 < w ? x0 + 1 : x0;
+    const y1 = y0 + 1 < h ? y0 + 1 : y0;
+    const fx = sx - x0, fy = sy - y0;
+    const w00 = (1 - fx) * (1 - fy);
+    const w10 = fx * (1 - fy);
+    const w01 = (1 - fx) * fy;
+    const w11 = fx * fy;
+    const i00 = (y0 * w + x0) * 4;
+    const i10 = (y0 * w + x1) * 4;
+    const i01 = (y1 * w + x0) * 4;
+    const i11 = (y1 * w + x1) * 4;
+    const a = src[i00 + 3] * w00 + src[i10 + 3] * w10 + src[i01 + 3] * w01 + src[i11 + 3] * w11;
+    if (a < 0.5) return false;
+    const invA = 255 / a;
+    out[0] = Math.min(255, ((src[i00] * w00 + src[i10] * w10 + src[i01] * w01 + src[i11] * w11) * invA) + 0.5) | 0;
+    out[1] = Math.min(255, ((src[i00 + 1] * w00 + src[i10 + 1] * w10 + src[i01 + 1] * w01 + src[i11 + 1] * w11) * invA) + 0.5) | 0;
+    out[2] = Math.min(255, ((src[i00 + 2] * w00 + src[i10 + 2] * w10 + src[i01 + 2] * w01 + src[i11 + 2] * w11) * invA) + 0.5) | 0;
+    out[3] = Math.min(255, a + 0.5) | 0;
+    return true;
+  }
+
+  function getWarpedHeadDomeCanvas(headTex, dome, yawRad, pitchRad) {
+    if (!headTex || !headTex.premul) return null;
+    const qYaw = Math.round(yawRad * 40);
+    const qPitch = Math.round(pitchRad * 40);
+    const key = `${headTex.cacheKey}:${dome ? 1 : 0}:${qYaw}:${qPitch}`;
+    const hit = headDomeWarpCache.get(key);
+    if (hit) {
+      headDomeWarpCache.delete(key);
+      headDomeWarpCache.set(key, hit);
+      return hit;
+    }
+
+    const yawQ = qYaw / 40;
+    const pitchQ = qPitch / 40;
+    const cy = Math.cos(yawQ), sy = Math.sin(yawQ);
+    const cp = Math.cos(pitchQ), sp = Math.sin(pitchQ);
+    const dx = -sy * cp, dy = -sp, dz = cy * cp;
+    const invDz = Math.abs(dz) > 1e-4 ? 1 / dz : 1e4;
+    const invA2 = 1 / (RIG.domeRadiusX * RIG.domeRadiusX);
+    const invB2 = 1 / (RIG.domeRadiusY * RIG.domeRadiusY);
+    const invC2 = 1 / (RIG.domeDepth * RIG.domeDepth);
+    const quadA = dx * dx * invA2 + dy * dy * invB2 + dz * dz * invC2;
+    const invQuadA = 1 / Math.max(1e-6, quadA);
+    const invU = 1 / (PART_UV.head.x1 - PART_UV.head.x0);
+    const invV = 1 / (PART_UV.head.y1 - PART_UV.head.y0);
+    const invCy = Math.abs(cy) > 1e-4 ? 1 / cy : 1;
+    const invCp = Math.abs(cp) > 1e-4 ? 1 / cp : 1;
+
+    const c = document.createElement('canvas');
+    c.width = HEAD_WARP_W;
+    c.height = HEAD_WARP_H;
+    const cx = c.getContext('2d');
+    const imgData = cx.createImageData(HEAD_WARP_W, HEAD_WARP_H);
+    const dst = imgData.data;
+    const src = headTex.premul;
+    const sw = headTex.w, sh = headTex.h;
+    const rgbaOut = [0, 0, 0, 0];
+
+    for (let pyIdx = 0; pyIdx < HEAD_WARP_H; pyIdx++) {
+      const py = HEAD_WARP_Y0 + ((pyIdx + 0.5) / HEAD_WARP_H) * (HEAD_WARP_Y1 - HEAD_WARP_Y0);
+      const oBaseY = py * cp;
+      const oBaseX = -py * sy * sp;
+      const oBaseZ = py * cy * sp;
+      let dstIdx = pyIdx * HEAD_WARP_W * 4;
+      for (let pxIdx = 0; pxIdx < HEAD_WARP_W; pxIdx++, dstIdx += 4) {
+        const px = HEAD_WARP_X0 + ((pxIdx + 0.5) / HEAD_WARP_W) * (HEAD_WARP_X1 - HEAD_WARP_X0);
+        let hx, hy;
+        if (!dome) {
+          const z = RIG.planeDepth;
+          hx = (px - z * sy) * invCy;
+          hy = (py - (-hx * sy + z * cy) * sp) * invCp;
+        } else {
+          const ox = px * cy + oBaseX;
+          const oy = oBaseY;
+          const oz = px * sy + oBaseZ;
+          const quadB = ox * dx * invA2 + oy * dy * invB2 + oz * dz * invC2;
+          const quadC = ox * ox * invA2 + oy * oy * invB2 + oz * oz * invC2 - 1;
+          const disc = quadB * quadB - quadA * quadC;
+          let hitDome = false;
+          if (disc >= 0) {
+            const pz = (-quadB + Math.sqrt(disc)) * invQuadA;
+            const z = oz + pz * dz;
+            if (z >= 0) {
+              hx = ox + pz * dx;
+              hy = oy + pz * dy;
+              hitDome = true;
+            }
+          }
+          if (!hitDome) {
+            const pz = -oz * invDz;
+            hx = ox + pz * dx;
+            hy = oy + pz * dy;
+          }
+        }
+        const u = (hx - PART_UV.head.x0) * invU;
+        const v = (hy - PART_UV.head.y0) * invV;
+        if (samplePremulBilinear(src, sw, sh, u, v, rgbaOut)) {
+          dst[dstIdx] = rgbaOut[0];
+          dst[dstIdx + 1] = rgbaOut[1];
+          dst[dstIdx + 2] = rgbaOut[2];
+          dst[dstIdx + 3] = rgbaOut[3];
+        }
+      }
+    }
+    cx.putImageData(imgData, 0, 0);
+    headDomeWarpCache.set(key, c);
+    if (headDomeWarpCache.size > 48) {
+      const oldest = headDomeWarpCache.keys().next().value;
+      headDomeWarpCache.delete(oldest);
+    }
+    return c;
+  }
+
+  function rasterizeQuadTri(dst, dstW, dstH, src, srcW, srcH, p0x, p0y, u0, v0, p1x, p1y, u1, v1, p2x, p2y, u2, v2, tmpOut) {
+    let area = (p1x - p0x) * (p2y - p0y) - (p2x - p0x) * (p1y - p0y);
+    if (Math.abs(area) < 1e-4) return;
+    if (area < 0) {
+      let tx = p1x, ty = p1y, tu = u1, tv = v1;
+      p1x = p2x; p1y = p2y; u1 = u2; v1 = v2;
+      p2x = tx; p2y = ty; u2 = tu; v2 = tv;
+      area = -area;
+    }
+    const invA = 1 / area;
+    const minPx = Math.max(0, Math.floor(Math.min(p0x, p1x, p2x) - 0.5));
+    const maxPx = Math.min(dstW - 1, Math.ceil(Math.max(p0x, p1x, p2x) + 0.5));
+    const minPy = Math.max(0, Math.floor(Math.min(p0y, p1y, p2y) - 0.5));
+    const maxPy = Math.min(dstH - 1, Math.ceil(Math.max(p0y, p1y, p2y) + 0.5));
+    for (let py = minPy; py <= maxPy; py++) {
+      const y = py + 0.5;
+      let idx = (py * dstW + minPx) * 4;
+      for (let px = minPx; px <= maxPx; px++, idx += 4) {
+        const x = px + 0.5;
+        const w0 = ((p1x - x) * (p2y - y) - (p2x - x) * (p1y - y)) * invA;
+        const w1 = ((p2x - x) * (p0y - y) - (p0x - x) * (p2y - y)) * invA;
+        const w2 = 1 - w0 - w1;
+        if (w0 < -1e-4 || w1 < -1e-4 || w2 < -1e-4) continue;
+        const u = clamp(w0 * u0 + w1 * u1 + w2 * u2, 0, 1);
+        const v = clamp(w0 * v0 + w1 * v1 + w2 * v2, 0, 1);
+        if (samplePremulBilinear(src, srcW, srcH, u, v, tmpOut)) {
+          dst[idx] = tmpOut[0];
+          dst[idx + 1] = tmpOut[1];
+          dst[idx + 2] = tmpOut[2];
+          dst[idx + 3] = tmpOut[3];
+        }
+      }
+    }
+  }
+
+  function blitStripMesh(ctx, tex, samples, uRange, vertical) {
+    if (!tex || !tex.premul || !samples || samples.length < 2) return;
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      if (s.left.x < minX) minX = s.left.x;
+      if (s.right.x < minX) minX = s.right.x;
+      if (s.left.y < minY) minY = s.left.y;
+      if (s.right.y < minY) minY = s.right.y;
+      if (s.left.x > maxX) maxX = s.left.x;
+      if (s.right.x > maxX) maxX = s.right.x;
+      if (s.left.y > maxY) maxY = s.left.y;
+      if (s.right.y > maxY) maxY = s.right.y;
+    }
+    minX -= 2; minY -= 2; maxX += 2; maxY += 2;
+    const logW = maxX - minX, logH = maxY - minY;
+    if (logW <= 0.5 || logH <= 0.5) return;
+    const bmpW = clamp(Math.ceil(logW * 2), 2, 768);
+    const bmpH = clamp(Math.ceil(logH * 2), 2, 768);
+    if (!stripScratchCanvas) {
+      stripScratchCanvas = document.createElement('canvas');
+      stripScratchCtx = stripScratchCanvas.getContext('2d');
+    }
+    stripScratchCanvas.width = bmpW;
+    stripScratchCanvas.height = bmpH;
+    const imgData = stripScratchCtx.createImageData(bmpW, bmpH);
+    const dst = imgData.data;
+    const sx = bmpW / logW, sy = bmpH / logH;
+    const invSpan = 1 / Math.max(1e-5, uRange.x1 - uRange.x0);
+    const tmpOut = [0, 0, 0, 0];
+
+    for (let i = 0; i < samples.length - 1; i++) {
+      const s0 = samples[i], s1 = samples[i + 1];
+      const u0 = (s0.xCoord - uRange.x0) * invSpan;
+      const u1 = (s1.xCoord - uRange.x0) * invSpan;
+      const l0x = (s0.left.x - minX) * sx,  l0y = (s0.left.y - minY) * sy;
+      const r0x = (s0.right.x - minX) * sx, r0y = (s0.right.y - minY) * sy;
+      const l1x = (s1.left.x - minX) * sx,  l1y = (s1.left.y - minY) * sy;
+      const r1x = (s1.right.x - minX) * sx, r1y = (s1.right.y - minY) * sy;
+      if (vertical) {
+        rasterizeQuadTri(dst, bmpW, bmpH, tex.premul, tex.w, tex.h, l0x, l0y, 0, u0, r0x, r0y, 1, u0, l1x, l1y, 0, u1, tmpOut);
+        rasterizeQuadTri(dst, bmpW, bmpH, tex.premul, tex.w, tex.h, r0x, r0y, 1, u0, r1x, r1y, 1, u1, l1x, l1y, 0, u1, tmpOut);
+      } else {
+        rasterizeQuadTri(dst, bmpW, bmpH, tex.premul, tex.w, tex.h, l0x, l0y, u0, 1, r0x, r0y, u0, 0, l1x, l1y, u1, 1, tmpOut);
+        rasterizeQuadTri(dst, bmpW, bmpH, tex.premul, tex.w, tex.h, r0x, r0y, u0, 0, r1x, r1y, u1, 0, l1x, l1y, u1, 1, tmpOut);
+      }
+    }
+    stripScratchCtx.putImageData(imgData, 0, 0);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(stripScratchCanvas, minX, minY, logW, logH);
+    ctx.restore();
+  }
+
+  function drawLimbPartTexture(ctx, tex, start, control, end, startW, endW, sideSign) {
+    const t0tan = quadTangent(start, control, end, 0);
+    const l0 = Math.max(0.001, Math.hypot(t0tan.x, t0tan.y));
+    const u0x = t0tan.x / l0, u0y = t0tan.y / l0;
+    const t1tan = quadTangent(start, control, end, 1);
+    const l1 = Math.max(0.001, Math.hypot(t1tan.x, t1tan.y));
+    const u1x = t1tan.x / l1, u1y = t1tan.y / l1;
+    const spanEst = Math.max(10, Math.hypot(end.x - start.x, end.y - start.y));
+
+    const samples = [];
+    const steps = 18;
+    for (let i = 0; i <= steps; i++) {
+      const xCoord = PART_UV.limb.x0 + (i / steps) * (PART_UV.limb.x1 - PART_UV.limb.x0);
+      const tRaw = xCoord / 100;
+      const tC = clamp(tRaw, 0, 1);
+      const p = quadPoint(start, control, end, tC);
+      const tan = quadTangent(start, control, end, tC);
+      const len = Math.max(0.001, Math.hypot(tan.x, tan.y));
+      let px = p.x, py = p.y;
+      if (tRaw < 0) { px += u0x * tRaw * spanEst; py += u0y * tRaw * spanEst; }
+      else if (tRaw > 1) { px += u1x * (tRaw - 1) * spanEst; py += u1y * (tRaw - 1) * spanEst; }
+      const nx = -tan.y / len, ny = tan.x / len;
+      const hw = (startW + (endW - startW) * tC) * 0.5;
+      const halfSpan = 1.4 * hw * sideSign;
+      samples.push({
+        left:  { x: px + nx * halfSpan, y: py + ny * halfSpan },
+        right: { x: px - nx * halfSpan, y: py - ny * halfSpan },
+        xCoord
+      });
+    }
+    blitStripMesh(ctx, tex, samples, PART_UV.limb);
+  }
+
+  function drawIdleArmPartTexture(ctx, tex, top, bottom, sign) {
+    const dx = bottom.x - top.x, dy = bottom.y - top.y;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const ux = dx / len, uy = dy / len;
+    const samples = [];
+    const steps = 10;
+    for (let i = 0; i <= steps; i++) {
+      const xCoord = PART_UV.limb.x0 + (i / steps) * (PART_UV.limb.x1 - PART_UV.limb.x0);
+      const tRaw = xCoord / 100;
+      const px = top.x + ux * (tRaw * len);
+      const py = top.y + uy * (tRaw * len);
+      const tC = clamp(tRaw, 0, 1);
+      const hw = 8.0 - 1.2 * tC;
+      const halfSpan = 1.4 * hw * sign;
+      samples.push({
+        left:  { x: px + halfSpan, y: py },
+        right: { x: px - halfSpan, y: py },
+        xCoord
+      });
+    }
+    blitStripMesh(ctx, tex, samples, PART_UV.limb);
+  }
+
+  function drawTailPartTexture(ctx, tex, curve, tStart, tEnd, tailThickness) {
+    const evalCurve = (t) => {
+      const u = 1 - t;
+      const x = u*u*u*curve.root.x + 3*u*u*t*curve.c1.x + 3*u*t*t*curve.c2.x + t*t*t*curve.tip.x;
+      const y = u*u*u*curve.root.y + 3*u*u*t*curve.c1.y + 3*u*t*t*curve.c2.y + t*t*t*curve.tip.y;
+      const dx = 3*u*u*(curve.c1.x - curve.root.x) + 6*u*t*(curve.c2.x - curve.c1.x) + 3*t*t*(curve.tip.x - curve.c2.x);
+      const dy = 3*u*u*(curve.c1.y - curve.root.y) + 6*u*t*(curve.c2.y - curve.c1.y) + 3*t*t*(curve.tip.y - curve.c2.y);
+      const len = Math.max(0.001, Math.hypot(dx, dy));
+      return { x, y, dx, dy, len };
+    };
+    const rootPt = evalCurve(0), tipPt = evalCurve(1);
+    const totalLen = Math.max(20, Math.hypot(curve.tip.x - curve.root.x, curve.tip.y - curve.root.y));
+    const xStart = tStart <= 0.001 ? PART_UV.tail.x0 : tStart * 100;
+    const xEnd = tEnd >= 0.999 ? PART_UV.tail.x1 : tEnd * 100;
+    const samples = [];
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const xCoord = xStart + (i / steps) * (xEnd - xStart);
+      const tRaw = xCoord / 100;
+      const ev = evalCurve(clamp(tRaw, 0, 1));
+      let px = ev.x, py = ev.y;
+      if (tRaw < 0) {
+        const ext = tRaw * totalLen;
+        px += (rootPt.dx / rootPt.len) * ext;
+        py += (rootPt.dy / rootPt.len) * ext;
+      } else if (tRaw > 1) {
+        const ext = (tRaw - 1) * totalLen;
+        px += (tipPt.dx / tipPt.len) * ext;
+        py += (tipPt.dy / tipPt.len) * ext;
+      }
+      const nx = -(ev.dy / ev.len), ny = ev.dx / ev.len;
+      const halfSpan = 10 * tailThickness;
+      samples.push({
+        left:  { x: px + nx * halfSpan, y: py + ny * halfSpan },
+        right: { x: px - nx * halfSpan, y: py - ny * halfSpan },
+        xCoord
+      });
+    }
+    blitStripMesh(ctx, tex, samples, PART_UV.tail);
+  }
+
   function getDecorationTransform(deco, skin, seatX, seatY, headCenter, state, decoAnchors) {
     const yawRad = state.headYaw * RIG.yawPerUnit;
     const pitchRad = state.headPitch * RIG.pitchPerUnit;
@@ -7884,6 +8606,7 @@
 
   global.KuroRenderer = {
     RIG,
+    PART_UV,
     getBuild,
     SEAT_ANCHOR,
     LEFT_PAW_REST,
@@ -7911,6 +8634,7 @@
     mapCanvasToSpace,
     mapCanvasToTail,
     preloadDecorations,
+    preloadPartTextures,
     preloadSpecialAssets,
     getDecorationTransform,
     getDecorationOverlayGeometry,

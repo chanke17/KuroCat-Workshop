@@ -3,6 +3,26 @@
   'use strict';
 
   const VALID_SPACES = ['head', 'skull', 'body', 'tail', 'leftEar', 'rightEar', 'leftArm', 'rightArm', 'hindLeg'];
+  const PART_TEXTURE_KEYS = [
+    'head', 'body', 'leftEar', 'rightEar', 'leftArm', 'rightArm', 'hindLeg', 'tail',
+    'leftIris', 'rightIris', 'leftHindPaw', 'rightHindPaw'
+  ];
+  const PART_TEXTURE_SPECS = {
+    head:         { width: 384, height: 384, x0: -76, y0: -66, x1: 76,  y1: 66 },
+    body:         { width: 384, height: 384, x0: -72, y0: -132, x1: 72, y1: 24 },
+    leftEar:      { width: 256, height: 256, x0: -75, y0: -125, x1: 75, y1: 25 },
+    rightEar:     { width: 256, height: 256, x0: -75, y0: -125, x1: 75, y1: 25 },
+    leftArm:      { width: 256, height: 256, x0: -8,  y0: -14, x1: 122, y1: 14 },
+    rightArm:     { width: 256, height: 256, x0: -8,  y0: -14, x1: 122, y1: 14 },
+    hindLeg:      { width: 256, height: 256, x0: -8,  y0: -14, x1: 122, y1: 14 },
+    tail:         { width: 256, height: 256, x0: -10, y0: -10, x1: 114, y1: 10 },
+    leftIris:     { width: 128, height: 128, x0: -14, y0: -13, x1: 14,  y1: 13 },
+    rightIris:    { width: 128, height: 128, x0: -14, y0: -13, x1: 14,  y1: 13 },
+    leftHindPaw:  { width: 128, height: 128, x0: -1.1, y0: -1.1, x1: 1.1, y1: 1.1 },
+    rightHindPaw: { width: 128, height: 128, x0: -1.1, y0: -1.1, x1: 1.1, y1: 1.1 }
+  };
+  const PART_TEXTURE_MAX_DIM = 512;
+  const PART_TEXTURE_MAX_BYTES = 512 * 1024;
   const VALID_BRUSHES = ['round', 'soft', 'airbrush', 'smudge'];
   const PALETTE_KEYS = [
     'body', 'headBody', 'bodyShade', 'belly', 'legs', 'paws', 'pawPads',
@@ -398,6 +418,32 @@
         }
       }
     }
+    if (raw.partTextures !== undefined && raw.partTextures !== null) {
+      if (typeof raw.partTextures !== 'object' || Array.isArray(raw.partTextures)) {
+        return { ok: false, error: 'partTextures 必须是对象' };
+      }
+      for (const k of PART_TEXTURE_KEYS) {
+        const val = raw.partTextures[k];
+        if (val === undefined || val === null || val === '') continue;
+        const info = pngInfo(val);
+        if (!info) return { ok: false, error: `partTextures.${k} 必须是 base64 编码的 PNG` };
+        if (info.bytes > PART_TEXTURE_MAX_BYTES) return { ok: false, error: `partTextures.${k} 超过 512 KB` };
+        if (info.width < 1 || info.height < 1 || info.width > PART_TEXTURE_MAX_DIM || info.height > PART_TEXTURE_MAX_DIM) {
+          return { ok: false, error: `partTextures.${k} 尺寸超过 ${PART_TEXTURE_MAX_DIM}×${PART_TEXTURE_MAX_DIM}` };
+        }
+      }
+    }
+    if (raw.partTextureOptions !== undefined && raw.partTextureOptions !== null) {
+      if (typeof raw.partTextureOptions !== 'object' || Array.isArray(raw.partTextureOptions)) {
+        return { ok: false, error: 'partTextureOptions 必须是对象' };
+      }
+      for (const k of ['hideDefaultPupil', 'hideDefaultNose', 'hideDefaultMouth']) {
+        const val = raw.partTextureOptions[k];
+        if (val !== undefined && typeof val !== 'boolean') {
+          return { ok: false, error: `partTextureOptions.${k} 必须是布尔值` };
+        }
+      }
+    }
     return { ok: true, error: '' };
   }
 
@@ -496,8 +542,25 @@
       }
     }
 
+    const partTextures = {};
+    if (raw.partTextures && typeof raw.partTextures === 'object') {
+      for (const k of PART_TEXTURE_KEYS) {
+        const val = raw.partTextures[k];
+        if (val && pngInfo(val)) partTextures[k] = stripDataUrl(val);
+      }
+    }
+    const pto = raw.partTextureOptions && typeof raw.partTextureOptions === 'object' ? raw.partTextureOptions : {};
+    const partTextureOptions = {
+      hideDefaultPupil: Boolean(pto.hideDefaultPupil),
+      hideDefaultNose: Boolean(pto.hideDefaultNose),
+      hideDefaultMouth: Boolean(pto.hideDefaultMouth)
+    };
+    const livePartTextures = raw._livePartTextures && typeof raw._livePartTextures === 'object' ? raw._livePartTextures : null;
+    const livePartTextureRev = raw._livePartTextureRev && typeof raw._livePartTextureRev === 'object' ? raw._livePartTextureRev : null;
+
+    const hasPartTexture = (key) => Boolean((livePartTextures && livePartTextures[key]) || partTextures[key]);
     const hasPartArt = (space) =>
-      regions.some((r) => r.space === space) || marks.some((m) => m.space === space);
+      hasPartTexture(space) || regions.some((r) => r.space === space) || marks.some((m) => m.space === space);
 
     return {
       name: (raw.name || '未命名皮肤').trim().slice(0, 40),
@@ -505,6 +568,10 @@
       palette: pal,
       shape,
       partGradients,
+      partTextures,
+      partTextureOptions,
+      _livePartTextures: livePartTextures,
+      _livePartTextureRev: livePartTextureRev,
       headSurface: raw.headSurface === 'plane' ? 'plane' : 'dome',
       renderStyle: (raw.renderStyle === 'douni' || raw.renderStyle === 'dazed' || raw.renderStyle === 'damiao' || raw.renderStyle === 'naimi' || raw.renderStyle === 'beagle') ? raw.renderStyle : 'standard',
       typingStyle: raw.typingStyle === 'douni' ? 'douni' : 'standard',
@@ -521,6 +588,7 @@
         rotation: clamp(typeof d.rotation === 'number' ? d.rotation : 0, -180, 180)
       })),
       colorpoint: Boolean(pal.points),
+      hasPartTexture,
       hasPartArt
     };
   }
@@ -635,6 +703,31 @@
           rotation: round2(clamp(typeof d.rotation === 'number' ? d.rotation : 0, -180, 180))
         }));
       }
+    }
+
+    if (raw.partTextures && typeof raw.partTextures === 'object') {
+      const ptOut = {};
+      let ptCount = 0;
+      for (const k of PART_TEXTURE_KEYS) {
+        const val = raw.partTextures[k];
+        if (val && pngInfo(val)) {
+          ptOut[k] = stripDataUrl(val);
+          ptCount++;
+        }
+      }
+      if (ptCount > 0) clean.partTextures = ptOut;
+    }
+
+    if (raw.partTextureOptions && typeof raw.partTextureOptions === 'object') {
+      const ptoOut = {};
+      let hasOpt = false;
+      for (const k of ['hideDefaultPupil', 'hideDefaultNose', 'hideDefaultMouth']) {
+        if (raw.partTextureOptions[k] === true) {
+          ptoOut[k] = true;
+          hasOpt = true;
+        }
+      }
+      if (hasOpt) clean.partTextureOptions = ptoOut;
     }
 
     if (previewBase64 && typeof previewBase64 === 'string') {
@@ -1017,7 +1110,7 @@
   const FORMAT_VERSION_MAX = 2;
   const BASE_APP_VERSION = '1.4.0';       // first release with .kurocat skins
   const LAST_FORMAT1_APP_VERSION = '1.5.2';
-  const NEXT_APP_VERSION = '1.5.3';
+  const NEXT_APP_VERSION = '1.6.0';
   const MARKS_LIMIT_V1 = 256;             // what 1.5.2 and older accept
   const MAX_MARKS = 1024;
   const WEB_ONLY_RENDER_STYLES = { damiao: '大喵', naimi: '奶咪' }; // drawn by the web renderer only
@@ -1063,7 +1156,15 @@
       if (Object.values(pg).some((g) => g && typeof g.stop === 'number' && Math.abs(g.stop - 0.5) > 1e-6)) need('1.4.6', '渐变位置 stop');
     }
     if (((raw && raw.marks) || []).some((m) => m && m.brush && m.brush !== 'round')) need('1.4.8', '柔边 / 喷枪 / 涂抹笔刷');
-    if (((raw && raw.marks) || []).length > MARKS_LIMIT_V1) need(NEXT_APP_VERSION, `超过 ${MARKS_LIMIT_V1} 条花纹`);
+    if (((raw && raw.marks) || []).length > MARKS_LIMIT_V1) need('1.5.3', `超过 ${MARKS_LIMIT_V1} 条花纹`);
+    const pt = raw && raw.partTextures;
+    if (pt && typeof pt === 'object' && PART_TEXTURE_KEYS.some((k) => Boolean(pt[k]))) {
+      need(NEXT_APP_VERSION, '透明纸部位贴图 partTextures');
+    }
+    const pto = raw && raw.partTextureOptions;
+    if (pto && typeof pto === 'object' && (pto.hideDefaultPupil || pto.hideDefaultNose || pto.hideDefaultMouth)) {
+      need(NEXT_APP_VERSION, '五官透明贴图选项 partTextureOptions');
+    }
 
     let version = BASE_APP_VERSION;
     for (const r of reasons) if (compareVersions(r.version, version) > 0) version = r.version;
@@ -1120,6 +1221,10 @@
 
   global.KuroSpec = {
     VALID_SPACES,
+    PART_TEXTURE_KEYS,
+    PART_TEXTURE_SPECS,
+    PART_TEXTURE_MAX_DIM,
+    PART_TEXTURE_MAX_BYTES,
     FORMAT_VERSION_MAX,
     MAX_MARKS,
     MARKS_LIMIT_V1,

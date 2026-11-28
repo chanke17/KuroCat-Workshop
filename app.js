@@ -6,6 +6,7 @@
   const Renderer = window.KuroRenderer;
   const Analyzer = window.KuroPhotoAnalyzer;
   const DecoLib = window.KuroDecorations;
+  const PixelLayers = window.KuroPixelLayers || null;
 
   // --- Application State ---
   let rawSkin = deepClone(Spec.EXTRA_PRESETS[0].spec); // Start with a charming tuxedo cat (or loaded template)
@@ -90,9 +91,85 @@
   const stageCoatBadge = document.getElementById('stage-coat-badge');
   const stageCard = canvasFrame ? canvasFrame.closest('.stage-card') : null;
   const stageColumn = canvasFrame ? canvasFrame.closest('.stage-column') : null;
-  const editModeBanner = document.getElementById('btn-exit-region-edit');
+  const editModeBanner = document.getElementById('btn-exit-region-edit') || { hidden: true };
   const decoBanner = document.getElementById('deco-banner');
   const toastEl = document.getElementById('toast');
+
+  // Floating transparent desktop pet layout controller (active when workbench is in .mode-editing)
+  const PET_LAYOUT_KEY = 'kurocat_floating_pet_v1';
+  const defaultPetLayout = () => ({ x: null, y: null, width: 228, minimized: false });
+  let petLayout = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PET_LAYOUT_KEY) || 'null');
+      if (saved && typeof saved.width === 'number') {
+        return {
+          x: typeof saved.x === 'number' && isFinite(saved.x) ? saved.x : null,
+          y: typeof saved.y === 'number' && isFinite(saved.y) ? saved.y : null,
+          width: Spec.clamp(saved.width, 136, 480),
+          minimized: Boolean(saved.minimized)
+        };
+      }
+    } catch (_) {}
+    return defaultPetLayout();
+  })();
+
+  function savePetLayout() {
+    try { localStorage.setItem(PET_LAYOUT_KEY, JSON.stringify(petLayout)); } catch (_) {}
+  }
+
+  function isFloatingPetMode() {
+    const wb = document.getElementById('workshop-view');
+    return !!(wb && wb.classList.contains('mode-editing') && stageColumn);
+  }
+
+  function applyFloatingPetLayout() {
+    if (!stageColumn) return;
+    const isFloat = isFloatingPetMode();
+    const toolbar = document.getElementById('floating-pet-toolbar');
+    const resizeBtn = document.getElementById('btn-pet-resize');
+    const bubble = document.getElementById('floating-pet-bubble');
+    const settingsPop = document.getElementById('floating-pet-settings');
+    const sizeValEl = document.getElementById('fpet-size-val');
+    if (sizeValEl) sizeValEl.textContent = Math.round(petLayout.width) + 'px';
+
+    if (!isFloat) {
+      stageColumn.classList.remove('is-minimized', 'is-floating-active');
+      stageColumn.style.width = '';
+      stageColumn.style.left = '';
+      stageColumn.style.top = '';
+      stageColumn.style.right = '';
+      stageColumn.style.bottom = '';
+      if (toolbar) toolbar.hidden = true;
+      if (resizeBtn) resizeBtn.hidden = true;
+      if (bubble) bubble.hidden = true;
+      if (settingsPop) settingsPop.hidden = true;
+      return;
+    }
+
+    if (toolbar) toolbar.hidden = false;
+    if (resizeBtn) resizeBtn.hidden = false;
+    stageColumn.classList.toggle('is-minimized', !!petLayout.minimized);
+    if (bubble) bubble.hidden = !petLayout.minimized;
+
+    const w = Spec.clamp(Math.round(petLayout.width), 136, 480);
+    const h = Math.round((w * 320) / 360);
+    stageColumn.style.width = w + 'px';
+    if (typeof petLayout.x === 'number' && typeof petLayout.y === 'number') {
+      const clampedX = Spec.clamp(petLayout.x, 8, Math.max(8, window.innerWidth - w - 8));
+      const clampedY = Spec.clamp(petLayout.y, 38, Math.max(38, window.innerHeight - h - 8));
+      petLayout.x = clampedX;
+      petLayout.y = clampedY;
+      stageColumn.style.left = clampedX + 'px';
+      stageColumn.style.top = clampedY + 'px';
+      stageColumn.style.right = 'auto';
+      stageColumn.style.bottom = 'auto';
+    } else {
+      stageColumn.style.left = '';
+      stageColumn.style.top = '';
+      stageColumn.style.right = '22px';
+      stageColumn.style.bottom = '18px';
+    }
+  }
 
   const photoCanvas = document.getElementById('photo-canvas');
   const photoCtx = photoCanvas.getContext('2d');
@@ -112,7 +189,8 @@
   }
 
   // --- Core Sync ---
-  function syncSkin(skipInputs) {
+  function syncSkin(skipInputs, syncOpts) {
+    const fastPaint = !!(syncOpts && syncOpts.fastPaint);
     if (!skipInputs) {
       skinNameInput.value = rawSkin.name || '';
       skinAuthorInput.value = rawSkin.author || '';
@@ -120,85 +198,65 @@
     if (!rawSkin.decorations) rawSkin.decorations = [];
     if (selectedDecoIdx >= rawSkin.decorations.length) selectedDecoIdx = -1;
     resolvedSkin = Spec.resolveSkin(rawSkin);
+    if (PixelLayers) PixelLayers.attachToResolvedSkin(resolvedSkin);
     Renderer.preloadDecorations(resolvedSkin.decorations);
 
-    const exportObj = Spec.sanitizeForExport(rawSkin);
-    const check = Spec.validateRawSkin(exportObj);
-    const jsonStr = JSON.stringify(exportObj, null, 2);
-    const kb = (new Blob([jsonStr]).size / 1024).toFixed(1);
+    if (!fastPaint) {
+      let exportObj = Spec.sanitizeForExport(rawSkin);
+      if (PixelLayers) exportObj = PixelLayers.applyToExportObject(exportObj);
+      const check = Spec.validateRawSkin(exportObj);
+      const jsonStr = JSON.stringify(exportObj, null, 2);
+      const kb = (new Blob([jsonStr]).size / 1024).toFixed(1);
 
-    if (check.ok) {
-      // Which desktop release can show this skin, and why (hover); web-only looks get a warning instead.
-      const req = Spec.requiredAppVersion(exportObj);
-      if (req.webOnly.length) {
-        validationPill.className = 'validation-pill warn';
-        validationPill.textContent = `⚠ 桌宠暂不支持「${req.webOnly.join('、')}」造型 · ${kb} KB`;
-        validationPill.title = '这个造型目前只有网页能画，导进桌宠会显示成普通小猫';
+      if (check.ok) {
+        const req = Spec.requiredAppVersion(exportObj);
+        if (req.webOnly.length) {
+          validationPill.className = 'validation-pill warn';
+          validationPill.textContent = `⚠ 桌宠暂不支持「${req.webOnly.join('、')}」造型 · ${kb} KB`;
+          validationPill.title = '这个造型目前只有网页能画，导进桌宠会显示成普通小猫';
+        } else {
+          validationPill.className = 'validation-pill ok';
+          validationPill.textContent = `✓ 桌宠 ${req.version}+ 可用 · ${kb} KB`;
+          validationPill.title = req.reasons.length
+            ? `需要 KuroCat ${req.version} 或更新版本：${[...new Set(req.reasons.filter((r) => r.version === req.version).map((r) => r.what))].join('、')}`
+            : '所有支持皮肤的 KuroCat 版本（1.4.0 起）都能用';
+        }
       } else {
-        validationPill.className = 'validation-pill ok';
-        validationPill.textContent = `✓ 桌宠 ${req.version}+ 可用 · ${kb} KB`;
-        validationPill.title = req.reasons.length
-          ? `需要 KuroCat ${req.version} 或更新版本：${[...new Set(req.reasons.filter((r) => r.version === req.version).map((r) => r.what))].join('、')}`
-          : '所有支持皮肤的 KuroCat 版本（1.4.0 起）都能用';
+        validationPill.className = 'validation-pill err';
+        validationPill.textContent = `✕ ${check.error}`;
+        validationPill.title = check.error;
       }
-    } else {
-      validationPill.className = 'validation-pill err';
-      validationPill.textContent = `✕ ${check.error}`;
-      validationPill.title = check.error;
+
+      const jsonPre = document.getElementById('json-preview');
+      if (jsonPre) jsonPre.textContent = jsonStr;
+      const jsonNote = document.getElementById('json-size-note');
+      if (jsonNote) jsonNote.textContent = `${kb} KB（导出时将附带 preview 缩略图）`;
+
+      renderTurnCheck();
+      renderPaletteUI();
+      renderShapeUI();
+      renderDecorationsUI();
+      scheduleHistory();
+      if (PixelLayers) PixelLayers.scheduleSave();
     }
-
-    const jsonPre = document.getElementById('json-preview');
-    if (jsonPre) jsonPre.textContent = jsonStr;
-    const jsonNote = document.getElementById('json-size-note');
-    if (jsonNote) jsonNote.textContent = `${kb} KB（导出时将附带 preview 缩略图）`;
-
-    updateSkullBanner();
-    renderTurnCheck();
-    renderPaletteUI();
-    renderShapeUI();
-    renderRegionsAndMarksUI();
-    renderPenSwatches();
-    renderDecorationsUI();
-    scheduleHistory();
     if (window.KuroExplodedStudio && typeof window.KuroExplodedStudio.onSkinSynced === 'function') {
-      window.KuroExplodedStudio.onSkinSynced();
+      window.KuroExplodedStudio.onSkinSynced(syncOpts);
     }
+    updateHistoryButtons();
   }
 
-  // --- Legacy `skull` patterns: they stay put while the head turns (the eyes slide out of them) ---
-  // The pen no longer offers 头壳; skins made before (or imported) get one banner per skin offering to convert.
-  const skullBanner = document.getElementById('skull-banner');
-  let skullBannerKeptFor = null;
+  function updateSkullBanner() {}
 
-  function skullBannerKey() {
-    return `${rawSkin.name || ''}|${Spec.countSkullItems(rawSkin)}`;
-  }
-
-  function updateSkullBanner() {
-    const n = Spec.countSkullItems(rawSkin);
-    skullBanner.hidden = n === 0 || skullBannerKeptFor === skullBannerKey();
-    if (!skullBanner.hidden) {
-      document.getElementById('skull-banner-text').textContent = `有 ${n} 个头部花纹画在「头壳」上，转头时不会跟着转`;
-    }
-  }
-
-  document.getElementById('btn-skull-fix-all').addEventListener('click', () => {
-    const n = Spec.migrateSkullToHead(rawSkin);
-    syncSkin(true);
-    showToast(`已把 ${n} 个花纹改为随转头（正脸外观不变，可撤销）`);
-  });
-
-  document.getElementById('btn-skull-keep').addEventListener('click', () => {
-    skullBannerKeptFor = skullBannerKey();
-    skullBanner.hidden = true;
-  });
-
-  // --- Undo / Redo: snapshots of rawSkin, taken once edits have been quiet for a moment ---
+  // --- Undo / Redo: unified pixel layer deltas + rawSkin metadata history ---
   const history = { undo: [], redo: [], current: null, timer: null, restoring: false };
 
   function updateHistoryButtons() {
-    document.getElementById('btn-undo').disabled = history.undo.length === 0;
-    document.getElementById('btn-redo').disabled = history.redo.length === 0;
+    const canU = (PixelLayers && PixelLayers.canUndo()) || history.undo.length > 0;
+    const canR = (PixelLayers && PixelLayers.canRedo()) || history.redo.length > 0;
+    const btnU = document.getElementById('btn-undo');
+    const btnR = document.getElementById('btn-redo');
+    if (btnU) btnU.disabled = !canU;
+    if (btnR) btnR.disabled = !canR;
   }
 
   function commitHistoryNow() {
@@ -224,7 +282,6 @@
 
   function restoreHistory(json) {
     history.restoring = true;
-    if (pen) exitPen();
     rawSkin = JSON.parse(json);
     if (!rawSkin.decorations) rawSkin.decorations = [];
     editingRegionIdx = -1;
@@ -237,6 +294,11 @@
   }
 
   function undo() {
+    if (PixelLayers && PixelLayers.undo()) {
+      syncSkin(true);
+      showToast('已撤销画布操作');
+      return;
+    }
     commitHistoryNow();
     if (!history.undo.length) return;
     history.redo.push(history.current);
@@ -246,6 +308,11 @@
   }
 
   function redo() {
+    if (PixelLayers && PixelLayers.redo()) {
+      syncSkin(true);
+      showToast('已重做画布操作');
+      return;
+    }
     commitHistoryNow();
     if (!history.redo.length) return;
     history.undo.push(history.current);
@@ -268,9 +335,15 @@
     syncSkin(true);
   });
 
-  document.getElementById('btn-export').addEventListener('click', () => {
+  function buildExportObjectWithPreview() {
     const previewB64 = Renderer.renderPreviewBase64(resolvedSkin, kbTheme, eyeTheme);
-    const exportObj = Spec.sanitizeForExport(rawSkin, previewB64);
+    let exportObj = Spec.sanitizeForExport(rawSkin, previewB64);
+    if (PixelLayers) exportObj = PixelLayers.applyToExportObject(exportObj);
+    return exportObj;
+  }
+
+  document.getElementById('btn-export').addEventListener('click', () => {
+    const exportObj = buildExportObjectWithPreview();
     const check = Spec.validateRawSkin(exportObj);
     if (!check.ok) {
       showToast('导出失败：' + check.error);
@@ -287,8 +360,37 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`已导出 ${safeName}.kurocat，可直接拖进换装间！`);
+    showToast(`已导出 ${safeName}.kurocat（v${Spec.requiredAppVersion(exportObj).version}+ 兼容），可直接拖进桌宠！`);
   });
+
+  function loadAndRasterizeSkin(parsed, badgeText, toastText) {
+    rawSkin = parsed;
+    if (!rawSkin.regions) rawSkin.regions = [];
+    if (!rawSkin.marks) rawSkin.marks = [];
+    if (!rawSkin.decorations) rawSkin.decorations = [];
+    if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
+    Spec.migrateSkullToHead(rawSkin);
+    editingRegionIdx = -1;
+    selectedDecoIdx = -1;
+    editModeBanner.hidden = true;
+    decoBanner.hidden = true;
+    if (stageCoatBadge && badgeText) stageCoatBadge.textContent = badgeText;
+    if (PixelLayers) {
+      const done = PixelLayers.rasterizeFromSkin(rawSkin, Spec.resolveSkin(rawSkin), eyeTheme, true);
+      if (done && typeof done.then === 'function') {
+        done.then(() => {
+          syncSkin();
+          commitHistoryNow();
+          PixelLayers.scheduleSave();
+        });
+      } else {
+        PixelLayers.scheduleSave();
+      }
+    }
+    syncSkin();
+    commitHistoryNow();
+    if (toastText) showToast(toastText);
+  }
 
   document.getElementById('import-kurocat-input').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
@@ -302,18 +404,7 @@
           showToast('导入失败：' + check.error);
           return;
         }
-        rawSkin = parsed;
-        if (!rawSkin.regions) rawSkin.regions = [];
-        if (!rawSkin.marks) rawSkin.marks = [];
-        if (!rawSkin.decorations) rawSkin.decorations = [];
-        if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
-        editingRegionIdx = -1;
-        selectedDecoIdx = -1;
-        editModeBanner.hidden = true;
-        decoBanner.hidden = true;
-        stageCoatBadge.textContent = '已导入皮肤';
-        syncSkin();
-        showToast(`已载入皮肤「${rawSkin.name}」`);
+        loadAndRasterizeSkin(parsed, '已导入皮肤', `已载入皮肤「${parsed.name}」并自动光栅化为透明纸图层`);
       } catch (err) {
         showToast('不是有效的 .kurocat JSON 文件');
       }
@@ -321,6 +412,57 @@
     reader.readAsText(file, 'utf-8');
     e.target.value = '';
   });
+
+  // Layered source project export / import (.kurocat-layers.json)
+  const btnExportProject = document.getElementById('btn-export-project');
+  if (btnExportProject && PixelLayers) {
+    btnExportProject.addEventListener('click', () => {
+      const proj = PixelLayers.serializeProject(rawSkin);
+      const blob = new Blob([JSON.stringify(proj)], { type: 'application/json;charset=utf-8' });
+      const safeName = (rawSkin.name || 'kurocat-project').replace(/[\\/:*?"<>|]/g, '_');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeName}.kurocat-layers.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`已导出多层原稿 ${safeName}.kurocat-layers.json`);
+    });
+  }
+
+  const importProjectInput = document.getElementById('import-project-input');
+  if (importProjectInput && PixelLayers) {
+    importProjectInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const parsed = JSON.parse(String(reader.result));
+          if (!parsed || !parsed.parts) {
+            showToast('导入失败：这不是有效的 .kurocat-layers.json 多层原稿文件');
+            return;
+          }
+          if (parsed.skin && Spec.validateRawSkin(parsed.skin).ok) {
+            rawSkin = parsed.skin;
+            if (!rawSkin.decorations) rawSkin.decorations = [];
+            if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
+          }
+          await PixelLayers.restoreProject(parsed);
+          syncSkin();
+          commitHistoryNow();
+          PixelLayers.scheduleSave();
+          showToast(`已导入多层原稿「${rawSkin.name || '皮肤工程'}」（保留全部分层与蒙版）`);
+        } catch (_) {
+          showToast('导入多层原稿失败：文件解析出错');
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+      e.target.value = '';
+    });
+  }
 
   document.getElementById('btn-snapshot').addEventListener('click', () => {
     const link = document.createElement('a');
@@ -355,24 +497,8 @@
     eyeTheme = e.target.value;
   });
 
-  function enterRegionEdit(idx) {
-    if (idx < 0 || !rawSkin.regions[idx]) return;
-    if (pen) exitPen();
-    selectedDecoIdx = -1;
-    decoBanner.hidden = true;
-    editingRegionIdx = idx;
-    editModeBanner.hidden = false;
-    renderRegionsAndMarksUI();
-  }
-
-  function exitRegionEdit() {
-    if (editingRegionIdx < 0) return;
-    editingRegionIdx = -1;
-    editModeBanner.hidden = true;
-    renderRegionsAndMarksUI();
-  }
-
-  editModeBanner.addEventListener('click', exitRegionEdit);
+  function enterRegionEdit() {}
+  function exitRegionEdit() {}
 
   document.getElementById('btn-exit-deco-edit').addEventListener('click', () => {
     selectedDecoIdx = -1;
@@ -596,7 +722,6 @@
     }
 
     if (zone === 'head' || zone === 'body') {
-      const hitReg = hitTestRegion(pos);
       live.draggingCat = {
         pointerId: e.pointerId,
         startClientX: e.clientX,
@@ -606,8 +731,7 @@
         lastTime: performance.now(),
         downTime: performance.now(),
         engaged: false,
-        startZone: zone,
-        startRegionIdx: hitReg
+        startZone: zone
       };
       catCanvas.setPointerCapture(e.pointerId);
       catCanvas.focus({ preventScroll: true });
@@ -699,8 +823,19 @@
         const dtMs = Math.max(8, now - live.draggingCat.lastTime);
         const vx = (dx / dtMs) * 1000;
         const vy = (dy / dtMs) * 1000;
-        live.dragOffsetX = e.clientX - live.draggingCat.startClientX;
-        live.dragOffsetY = e.clientY - live.draggingCat.startClientY;
+        if (isFloatingPetMode()) {
+          if (typeof petLayout.x !== 'number' || typeof petLayout.y !== 'number') {
+            const r = stageColumn.getBoundingClientRect();
+            petLayout.x = r.left;
+            petLayout.y = r.top;
+          }
+          petLayout.x += dx;
+          petLayout.y += dy;
+          applyFloatingPetLayout();
+        } else {
+          live.dragOffsetX = e.clientX - live.draggingCat.startClientX;
+          live.dragOffsetY = e.clientY - live.draggingCat.startClientY;
+        }
         animState.dragSwingTarget = Spec.clamp(-vx * 0.00052, -0.92, 0.92);
         animState.dragSwingYTarget = Spec.clamp(-vy * 0.00046, -0.78, 0.78);
       }
@@ -741,11 +876,10 @@
     const dc = live.draggingCat;
     if (!dc) return;
     live.draggingCat = null;
-    if (!dc.engaged) {
-      // Quick click (not dragged): clicking a pattern region auto-enters anchor edit mode!
-      if (dc.startRegionIdx >= 0 && rawSkin.regions[dc.startRegionIdx]) {
-        enterRegionEdit(dc.startRegionIdx);
-      } else if (dc.startZone === 'head') {
+    if (dc.engaged) {
+      if (isFloatingPetMode()) savePetLayout();
+    } else {
+      if (dc.startZone === 'head') {
         animState.earTwitch = 1.6;
         animState.bodySquash = 0.94;
         live.petHead = Math.min(1, live.petHead + 0.55);
@@ -833,544 +967,13 @@
   // side into an ordinary closed region). 「闭合色块」: draw the outline and click the first anchor to close.
   // Click = corner anchor; press and drag = smooth anchor with mirrored handles. The head and tail hold still
   // while the pen is on so anchors land where they are clicked.
-  const PEN_SPACE_NAMES = { head: '头部', skull: '头壳', body: '身体', tail: '尾巴' };
-  const penRound = (v) => Spec.round2(Spec.clamp(v, -400, 400));
-
-  function penToSpace(pos) {
-    const T = lastRenderTransforms;
-    return Renderer.mapCanvasToSpace(pos, pen.space, resolvedSkin, T.seatX, T.seatY, T.headCenter, animState);
-  }
-
-  function penToCanvas(pt) {
-    const T = lastRenderTransforms;
-    return Renderer.mapPointToCanvas(pt, pen.space, resolvedSkin, T.seatX, T.seatY, T.headCenter, animState);
-  }
-
-  function startPen() {
-    editingRegionIdx = -1;
-    selectedDecoIdx = -1;
-    editModeBanner.hidden = true;
-    decoBanner.hidden = true;
-    pen = {
-      space: penSpace, mode: penMode, anchors: [], stage: 'draw',
-      mirror: penMirror && Spec.canMirror(penSpace),
-      drag: null, hover: null, closeHint: false, preview: null, ends: null, lastDown: 0,
-      freehand: [], drawingFreehand: false
-    };
-    penPreviewSkin = null;
-    catCanvas.classList.add('pen-active');
-    document.getElementById('pen-banner').hidden = false;
-    document.getElementById('btn-pen-start').textContent = '正在画…（在左边小猫身上）';
-    document.getElementById('btn-pen-start').disabled = true;
-    renderRegionsAndMarksUI();
-    updatePenBanner();
-    const r = catCanvas.getBoundingClientRect();
-    if (r.top < 0 || r.bottom > window.innerHeight) catCanvas.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }
-
-  function exitPen() {
-    pen = null;
-    penPreviewSkin = null;
-    catCanvas.classList.remove('pen-active');
-    document.getElementById('pen-banner').hidden = true;
-    document.getElementById('btn-pen-start').textContent = '开始画';
-    document.getElementById('btn-pen-start').disabled = false;
-  }
-
-  function updatePenBanner() {
-    if (!pen) return;
-    const n = pen.anchors.length;
-    const where = PEN_SPACE_NAMES[pen.space];
-    let text, finish = '完成', canFinish = true, back = '撤一个点', canBack = n > 0;
-    if (pen.stage === 'side') {
-      text = `点线的一侧给${where}上色 · 换个颜色还能再点另一侧`;
-      back = '返回改线';
-      canBack = true;
-    } else if (pen.mode === 'brushFill') {
-      text = `自由画笔色块：在${where}上按住拖动涂画一圈，松手即生成可编辑色块（可连续画）`;
-      finish = '完成退出';
-      canFinish = true;
-      back = '撤销上一笔';
-      canBack = history.undo.length > 0;
-    } else if (pen.mode === 'brushStroke') {
-      text = `自由画笔线条：在${where}上按住拖动直接画花纹/条纹，松手即落笔（可连续画）`;
-      finish = '完成退出';
-      canFinish = true;
-      back = '撤销上一笔';
-      canBack = history.undo.length > 0;
-    } else if (pen.mode === 'split') {
-      text = n === 0
-        ? `分割线：在${where}上从一边画到另一边 · 单击放点，按住拖出弧线`
-        : n === 1 ? '继续放点 · 至少 2 个点' : '双击最后一点或按「画好了」，再选要上色的一侧';
-      finish = '画好了';
-      canFinish = n >= 2;
-    } else if (pen.mode === 'stroke') {
-      text = n === 0
-        ? `条纹笔触：沿${where}上的条纹放点 · 按住拖出弧线`
-        : n === 1 ? '继续放点 · 至少 2 个点' : '双击最后一点或按「画好了」生成这道条纹';
-      finish = '画好了';
-      canFinish = n >= 2;
-    } else {
-      text = n < 3
-        ? `闭合色块：沿${where}上色块的边缘放点 · 单击放点，按住拖出弧线`
-        : '点回白色起点闭合 · 或按「闭合」';
-      finish = '闭合';
-      canFinish = n >= 3;
-    }
-    if (pen.mirror) text += ' · 对称中';
-    document.getElementById('pen-banner-text').textContent = text;
-    const fb = document.getElementById('btn-pen-finish');
-    fb.textContent = finish;
-    fb.disabled = !canFinish;
-    const bb = document.getElementById('btn-pen-back');
-    bb.textContent = back;
-    bb.disabled = !canBack;
-  }
-
-  // Freehand RDP simplification + Catmull-Rom cubic Bezier anchor fitting
-  function rdpSimplify(pts, eps) {
-    if (pts.length <= 2) return pts.slice();
-    let maxD = 0, idx = 0;
-    const a = pts[0], b = pts[pts.length - 1];
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const len2 = dx * dx + dy * dy;
-    for (let i = 1; i < pts.length - 1; i++) {
-      let d;
-      if (len2 < 1e-6) {
-        d = Math.hypot(pts[i].x - a.x, pts[i].y - a.y);
-      } else {
-        const t = Math.max(0, Math.min(1, ((pts[i].x - a.x) * dx + (pts[i].y - a.y) * dy) / len2));
-        d = Math.hypot(pts[i].x - (a.x + t * dx), pts[i].y - (a.y + t * dy));
-      }
-      if (d > maxD) { maxD = d; idx = i; }
-    }
-    if (maxD > eps) {
-      const left = rdpSimplify(pts.slice(0, idx + 1), eps);
-      const right = rdpSimplify(pts.slice(idx), eps);
-      return left.slice(0, -1).concat(right);
-    }
-    return [a, b];
-  }
-
-  function freehandToClosedAnchors(pts) {
-    if (pts.length < 3) return [];
-    let simplified = rdpSimplify(pts, 2.2);
-    // Drop closing duplicate if very close to start
-    if (simplified.length > 3 && Math.hypot(simplified[0].x - simplified[simplified.length - 1].x, simplified[0].y - simplified[simplified.length - 1].y) < 3) {
-      simplified.pop();
-    }
-    if (simplified.length < 3) return [];
-    if (simplified.length > 40) {
-      simplified = rdpSimplify(pts, 4.0);
-      if (simplified.length > 40) {
-        const step = simplified.length / 40;
-        const sampled = [];
-        for (let i = 0; i < 40; i++) sampled.push(simplified[Math.floor(i * step)]);
-        simplified = sampled;
-      }
-    }
-    const n = simplified.length;
-    const tension = 0.22;
-    return simplified.map((cur, i) => {
-      const prev = simplified[(i - 1 + n) % n];
-      const next = simplified[(i + 1) % n];
-      const tx = (next.x - prev.x) * tension;
-      const ty = (next.y - prev.y) * tension;
-      return {
-        x: penRound(cur.x),
-        y: penRound(cur.y),
-        inX: penRound(cur.x - tx),
-        inY: penRound(cur.y - ty),
-        outX: penRound(cur.x + tx),
-        outY: penRound(cur.y + ty)
-      };
-    });
-  }
-
-  function finishFreehandStroke() {
-    if (!pen || !pen.drawingFreehand) return;
-    pen.drawingFreehand = false;
-    const pts = pen.freehand || [];
-    pen.freehand = [];
-    if (pen.mode === 'brushFill') {
-      if (pts.length >= 4) {
-        const anchors = freehandToClosedAnchors(pts);
-        if (anchors.length >= 3) {
-          commitPenRegion(anchors, '手绘');
-          return;
-        }
-      }
-      showToast('画圈范围太小，拖动大一点试试');
-      updatePenPreview();
-      return;
-    }
-    if (pen.mode === 'brushStroke') {
-      if (pts.length >= 2) {
-        const simp = rdpSimplify(pts, 1.1);
-        const rawPts = simp.map((p) => [penRound(p.x), penRound(p.y)]).slice(0, 512);
-        if (rawPts.length >= 2) {
-          rawSkin.marks = rawSkin.marks || [];
-          const need = pen.mirror ? 2 : 1;
-          if (rawSkin.marks.length + need > Spec.MAX_MARKS) {
-            showToast(`最多 ${Spec.MAX_MARKS} 条条纹，先删掉一些再画`);
-            updatePenPreview();
-            return;
-          }
-          const m = { space: pen.space, kind: 'stroke', color: penColor.toUpperCase(), width: Spec.round2(penWidth), points: rawPts };
-          rawSkin.marks.push(m);
-          if (pen.mirror) rawSkin.marks.push(Spec.mirrorMark(m));
-          syncSkin(true);
-          showToast(pen.mirror ? '已手绘一对对称线条' : '已添加手绘线条');
-        }
-      }
-      updatePenPreview();
-    }
-  }
-
-  // the shape under the cursor is drawn as a real region so it is clipped to the part exactly as it will be
-  function updatePenPreview() {
-    if (!pen) return;
-    if (pen.mode === 'brushFill' || pen.mode === 'brushStroke') {
-      const fh = pen.freehand || [];
-      const extraRegions = [];
-      const extraMarks = [];
-      if (pen.mode === 'brushFill' && fh.length >= 3) {
-        const r = { space: pen.space, fill: penColor + 'CC', anchors: fh.map((p) => ({ x: p.x, y: p.y })) };
-        extraRegions.push(r);
-        if (pen.mirror) extraRegions.push(Spec.mirrorRegion(r));
-      } else if (pen.mode === 'brushStroke' && fh.length >= 2) {
-        const m = { space: pen.space, kind: 'stroke', color: penColor, width: penWidth, points: fh.map((p) => [p.x, p.y]) };
-        extraMarks.push(m);
-        if (pen.mirror) extraMarks.push(Spec.mirrorMark(m));
-      }
-      penPreviewSkin = (extraRegions.length || extraMarks.length)
-        ? Spec.resolveSkin(Object.assign({}, rawSkin, {
-            regions: (rawSkin.regions || []).concat(extraRegions),
-            marks: (rawSkin.marks || []).concat(extraMarks)
-          }))
-        : null;
-      updatePenBanner();
-      return;
-    }
-    const A = pen.anchors;
-    let preview = null;
-    if (pen.stage === 'side') {
-      if (pen.hover) preview = Spec.pickSplitSide(A, pen.space, penToSpace(pen.hover));
-    } else if (pen.mode === 'closed') {
-      const pts = A.slice();
-      if (pen.hover && !pen.drag && !pen.closeHint) {
-        const h = penToSpace(pen.hover);
-        pts.push({ x: h.x, y: h.y });
-      }
-      if (pts.length >= 3) preview = pts;
-    }
-    pen.ends = pen.mode === 'split' && A.length >= 2 ? Spec.splitSides(A, pen.space).ends : null;
-    pen.preview = preview;
-    let strokePts = null;
-    if (pen.mode === 'stroke') {
-      const pts = A.slice();
-      if (pen.hover && !pen.drag) {
-        const h = penToSpace(pen.hover);
-        pts.push({ x: h.x, y: h.y });
-      }
-      if (pts.length >= 2) strokePts = strokePoints(pts);
-    }
-    if (preview || strokePts) {
-      const extraRegions = [];
-      const extraMarks = [];
-      if (preview) {
-        const r = { space: pen.space, fill: penColor + (pen.stage === 'side' ? 'CC' : 'B3'), anchors: preview };
-        extraRegions.push(r);
-        if (pen.mirror) extraRegions.push(Spec.mirrorRegion(r));
-      }
-      if (strokePts) {
-        const m = { space: pen.space, kind: 'stroke', color: penColor, width: penWidth, points: strokePts };
-        extraMarks.push(m);
-        if (pen.mirror) extraMarks.push(Spec.mirrorMark(m));
-      }
-      penPreviewSkin = Spec.resolveSkin(Object.assign({}, rawSkin, {
-        regions: (rawSkin.regions || []).concat(extraRegions),
-        marks: (rawSkin.marks || []).concat(extraMarks)
-      }));
-    } else {
-      penPreviewSkin = null;
-    }
-    updatePenBanner();
-  }
-
-  let twinCounter = 0;
-  const newTwinId = () => `t${Date.now().toString(36)}${(twinCounter++).toString(36)}`;
-
-  // flattened pen path -> stroke mark points (drop near-duplicates, ≤ 512 points)
-  function strokePoints(anchors) {
-    const out = [];
-    for (const p of Spec.flattenOpen(anchors)) {
-      const q = [Spec.round2(Spec.clamp(p.x, -400, 400)), Spec.round2(Spec.clamp(p.y, -400, 400))];
-      const last = out[out.length - 1];
-      if (!last || Math.hypot(q[0] - last[0], q[1] - last[1]) >= 0.6) out.push(q);
-    }
-    if (out.length === 1) out.push([out[0][0] + 0.6, out[0][1]]);
-    return out.slice(0, 512);
-  }
-
-  function commitPenMark(anchors) {
-    rawSkin.marks = rawSkin.marks || [];
-    const need = pen.mirror ? 2 : 1;
-    if (rawSkin.marks.length + need > Spec.MAX_MARKS) {
-      showToast(`最多 ${Spec.MAX_MARKS} 条条纹，先删掉一些再画`);
-      return;
-    }
-    const m = { space: pen.space, kind: 'stroke', color: penColor.toUpperCase(), width: Spec.round2(penWidth), points: strokePoints(anchors) };
-    rawSkin.marks.push(m);
-    if (pen.mirror) rawSkin.marks.push(Spec.mirrorMark(m));
-    syncSkin(true);
-    showToast(pen.mirror ? '已添加一对对称条纹' : '已添加条纹笔触');
-    pen.anchors = [];
-    updatePenPreview();
-  }
-
-  function commitPenRegion(anchors, prefix) {
-    rawSkin.regions = rawSkin.regions || [];
-    const need = pen.mirror ? 2 : 1;
-    if (rawSkin.regions.length + need > 64) {
-      showToast('最多 64 个分区，先删掉一些再画');
-      return;
-    }
-    const r = {
-      _label: `${prefix || '钢笔'} · ${PEN_SPACE_NAMES[pen.space]}`,
-      space: pen.space,
-      fill: penColor.toUpperCase(),
-      anchors: deepClone(anchors)
-    };
-    rawSkin.regions.push(r);
-    if (pen.mirror) {
-      r._twin = newTwinId();
-      const m = Spec.mirrorRegion(r);
-      m._label = `${r._label} · 镜像`;
-      rawSkin.regions.push(m);
-    }
-    syncSkin(true);
-    showToast(pen.mirror
-      ? `已添加一对对称的${PEN_SPACE_NAMES[pen.space]}分区，调锚点时两边会一起动`
-      : `已添加${PEN_SPACE_NAMES[pen.space]}分区，可在列表里改色或删除`);
-    if (pen.mode === 'closed') {
-      pen.anchors = [];
-      pen.closeHint = false;
-    }
-    updatePenPreview();
-  }
-
-  function finishPen() {
-    if (!pen) return;
-    if (pen.mode === 'brushFill' || pen.mode === 'brushStroke') {
-      exitPen();
-      return;
-    }
-    const A = pen.anchors;
-    if (pen.stage === 'side') {
-      exitPen();
-      return;
-    }
-    if (A.length === 0) {
-      exitPen();
-      return;
-    }
-    pen.drag = null;
-    if (pen.mode === 'stroke') {
-      if (A.length < 2) {
-        showToast('条纹至少要 2 个点');
-        return;
-      }
-      commitPenMark(A);
-      return;
-    }
-    if (pen.mode === 'closed') {
-      if (A.length < 3) {
-        showToast('至少放 3 个点才能闭合');
-        return;
-      }
-      commitPenRegion(A);
-      return;
-    }
-    if (A.length < 2) {
-      showToast('分割线至少要 2 个点');
-      return;
-    }
-    pen.stage = 'side';
-    updatePenPreview();
-  }
-
-  function penBack() {
-    if (!pen) return;
-    if (pen.mode === 'brushFill' || pen.mode === 'brushStroke') {
-      undo();
-      return;
-    }
-    if (pen.stage === 'side') {
-      pen.stage = 'draw';
-    } else {
-      pen.anchors.pop();
-    }
-    pen.drag = null;
-    pen.closeHint = false;
-    updatePenPreview();
-  }
-
-  function penPointerDown(e, pos) {
-    pen.hover = pos;
-    if (pen.mode === 'brushFill' || pen.mode === 'brushStroke') {
-      const sp = penToSpace(pos);
-      pen.freehand = [{ x: penRound(sp.x), y: penRound(sp.y) }];
-      pen.drawingFreehand = true;
-      try { catCanvas.setPointerCapture(e.pointerId); } catch (_) {}
-      updatePenPreview();
-      return;
-    }
-    if (pen.stage === 'side') {
-      const side = Spec.pickSplitSide(pen.anchors, pen.space, penToSpace(pos));
-      if (!side) {
-        showToast('点在线的某一侧来上色');
-        return;
-      }
-      commitPenRegion(side);
-      return;
-    }
-    const A = pen.anchors;
-    if (pen.mode === 'closed' && A.length >= 3) {
-      const p0 = penToCanvas(A[0]);
-      if (Math.hypot(pos.x - p0.x, pos.y - p0.y) < 9) {
-        finishPen();
-        return;
-      }
-    }
-    const now = performance.now();
-    if (A.length) {
-      const pl = penToCanvas(A[A.length - 1]);
-      if (Math.hypot(pos.x - pl.x, pos.y - pl.y) < 6 && now - pen.lastDown < 450) {
-        pen.lastDown = 0;
-        finishPen();
-        return;
-      }
-    }
-    pen.lastDown = now;
-    if (A.length >= 100) {
-      showToast('一条线最多 100 个点');
-      return;
-    }
-    const sp = penToSpace(pos);
-    A.push({ x: penRound(sp.x), y: penRound(sp.y) });
-    pen.drag = { idx: A.length - 1, start: pos };
-    try { catCanvas.setPointerCapture(e.pointerId); } catch (_) { /* synthetic events */ }
-    updatePenPreview();
-  }
-
-  function penPointerMove(pos) {
-    pen.hover = pos;
-    if (pen.mode === 'brushFill' || pen.mode === 'brushStroke') {
-      if (!pen.drawingFreehand) return;
-      const sp = penToSpace(pos);
-      const last = pen.freehand[pen.freehand.length - 1];
-      if (!last || Math.hypot(sp.x - last.x, sp.y - last.y) >= 1.6) {
-        pen.freehand.push({ x: penRound(sp.x), y: penRound(sp.y) });
-        updatePenPreview();
-      }
-      return;
-    }
-    if (pen.drag) {
-      const a = pen.anchors[pen.drag.idx];
-      if (Math.hypot(pos.x - pen.drag.start.x, pos.y - pen.drag.start.y) > 3) {
-        const sp = penToSpace(pos);
-        a.outX = penRound(sp.x);
-        a.outY = penRound(sp.y);
-        a.inX = penRound(2 * a.x - sp.x);
-        a.inY = penRound(2 * a.y - sp.y);
-      }
-    }
-    pen.closeHint = false;
-    if (pen.stage === 'draw' && pen.mode === 'closed' && pen.anchors.length >= 3 && !pen.drag) {
-      const p0 = penToCanvas(pen.anchors[0]);
-      pen.closeHint = Math.hypot(pos.x - p0.x, pos.y - p0.y) < 9;
-    }
-    updatePenPreview();
-  }
-
-  function renderPenSwatches() {
-    const wrap = document.getElementById('pen-swatches');
-    if (!wrap) return;
-    const pal = rawSkin.palette || {};
-    const seen = new Set();
-    const list = [];
-    for (const [k, label] of [['belly', '肚皮'], ['body', '主色'], ['points', '重点色'], ['stripes', '条纹'], ['legs', '腿'], ['earInner', '内耳']]) {
-      const v = pal[k] && Spec.isValidHex(pal[k]) ? pal[k].slice(0, 7).toUpperCase() : null;
-      if (v && !seen.has(v)) { seen.add(v); list.push([v, label]); }
-    }
-    for (const [v, label] of [['#FAF4EA', '奶白'], ['#2B2622', '墨黑'], ['#E39A55', '橘色'], ['#8E8A86', '灰']]) {
-      if (!seen.has(v)) { seen.add(v); list.push([v, label]); }
-    }
-    wrap.innerHTML = '';
-    for (const [v, label] of list.slice(0, 9)) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'pen-swatch' + (v === penColor.toUpperCase() ? ' active' : '');
-      b.style.background = v;
-      b.title = `${label} ${v}`;
-      b.setAttribute('aria-label', `${label} ${v}`);
-      b.addEventListener('click', () => setPenColor(v));
-      wrap.appendChild(b);
-    }
-  }
-
-  function setPenColor(v) {
-    penColor = v.toUpperCase();
-    document.getElementById('pen-color').value = penColor.slice(0, 7).toLowerCase();
-    renderPenSwatches();
-    if (pen) updatePenPreview();
-  }
-
-  document.getElementById('pen-color').addEventListener('input', (e) => setPenColor(e.target.value));
-
-  const PEN_HELP = {
-    brushFill: '像画画一样直接在左边小猫身上按住拖动涂出一块形状，松手自动闭合为可调锚点的色块，可连续画。',
-    brushStroke: '直接在左边小猫身上按住拖动自由绘制条纹、腮红、花斑线条，松手即落笔。',
-    split: '在左边小猫身上画一条穿过部位的曲线，画好后点线的哪一侧，哪一侧就填上颜色。',
-    closed: '沿着想要的色块边缘一圈放点，点回起点就闭合成一块颜色。',
-    stroke: '沿着条纹放点、按住拖出弧线，画好后生成一道条纹（会出现在「条纹与图形」列表里）。'
-  };
-
-  function bindPenPills(groupId, attr, apply) {
-    document.querySelectorAll(`#${groupId} .pill`).forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll(`#${groupId} .pill`).forEach((b) => b.classList.toggle('active', b === btn));
-        apply(btn.dataset[attr]);
-        document.getElementById('pen-help').textContent = PEN_HELP[penMode];
-        if (pen) startPen(); // settings changed mid-drawing: start over with them
-      });
-    });
-  }
-  bindPenPills('pen-space-pills', 'space', (v) => { penSpace = v; });
-  bindPenPills('pen-mode-pills', 'mode', (v) => {
-    penMode = v;
-    document.getElementById('pen-width-row').hidden = (v !== 'stroke' && v !== 'brushStroke');
-  });
-
-  document.getElementById('pen-mirror').addEventListener('change', (e) => {
-    penMirror = e.target.checked;
-    if (pen) {
-      pen.mirror = penMirror && Spec.canMirror(pen.space);
-      updatePenPreview();
-    }
-  });
-
-  document.getElementById('pen-width').addEventListener('input', (e) => {
-    penWidth = parseFloat(e.target.value) || 2.2;
-    document.getElementById('pen-width-val').textContent = penWidth.toFixed(1);
-    if (pen) updatePenPreview();
-  });
-
-  document.getElementById('btn-pen-start').addEventListener('click', startPen);
-  document.getElementById('btn-pen-finish').addEventListener('click', finishPen);
-  document.getElementById('btn-pen-back').addEventListener('click', penBack);
-  document.getElementById('btn-pen-cancel').addEventListener('click', exitPen);
+  function startPen() {}
+  function exitPen() {}
+  function renderPenSwatches() {}
+  function penPointerDown() {}
+  function penPointerMove() {}
+  function finishFreehandStroke() {}
+  function updatePenPreview() {}
 
   function isEditableElement(el) {
     if (!el) return false;
@@ -1612,6 +1215,7 @@
 
     rawSkin = result.spec;
     if (!rawSkin.decorations) rawSkin.decorations = [];
+    Spec.migrateSkullToHead(rawSkin);
     editingRegionIdx = -1;
     selectedDecoIdx = -1;
     editModeBanner.hidden = true;
@@ -1644,11 +1248,13 @@
     const vecCtrl = document.getElementById('photo-vector-controls');
     if (vecCtrl) vecCtrl.hidden = useOriginalDrawing;
     document.getElementById('photo-controls').hidden = false;
+    if (PixelLayers) PixelLayers.rasterizeFromSkin(rawSkin, Spec.resolveSkin(rawSkin), eyeTheme, true);
     syncSkin();
+    commitHistoryNow();
     if (!silent) {
       showToast(useOriginalDrawing
-        ? `已直接保留手绘原图生成「${baseName}」，可在「配饰装扮」微调位置`
-        : `已从图片提取色块生成「${baseName}」`);
+        ? `已保留手绘原图生成「${baseName}」，已转化为透明纸图层`
+        : `已从照片提取色块生成「${baseName}」透明纸图层`);
     }
   }
 
@@ -2107,18 +1713,7 @@
     btn.appendChild(thumbWrap);
     btn.appendChild(info);
     btn.addEventListener('click', () => {
-      rawSkin = deepClone(specObj);
-      if (!rawSkin.regions) rawSkin.regions = [];
-      if (!rawSkin.marks) rawSkin.marks = [];
-      if (!rawSkin.decorations) rawSkin.decorations = [];
-      if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
-      editingRegionIdx = -1;
-      selectedDecoIdx = -1;
-      editModeBanner.hidden = true;
-      decoBanner.hidden = true;
-      stageCoatBadge.textContent = `模板 · ${rawSkin.name}`;
-      syncSkin();
-      showToast(`已载入模板「${rawSkin.name}」`);
+      loadAndRasterizeSkin(deepClone(specObj), `模板 · ${specObj.name}`, `已载入模板「${specObj.name}」并生成透明纸图层`);
     });
     return btn;
   }
@@ -2424,276 +2019,20 @@
     return btn;
   }
 
-  function renderRegionsAndMarksUI() {
-    const regions = rawSkin.regions || (rawSkin.regions = []);
-    const marks = rawSkin.marks || (rawSkin.marks = []);
-    document.getElementById('regions-count').textContent = `${regions.length} / 64`;
-    const marksCount = document.getElementById('marks-count');
-    marksCount.textContent = `${marks.length} / ${Spec.MAX_MARKS}`;
-    // Over 256 the skin needs the next desktop release; say so where the count is.
-    if (marks.length > Spec.MARKS_LIMIT_V1) marksCount.textContent += ` · 需 KuroCat ${Spec.NEXT_APP_VERSION}+`;
+  function renderRegionsAndMarksUI() {}
 
-    const rList = document.getElementById('regions-list');
-    rList.innerHTML = '';
-    if (regions.length === 0) {
-      rList.innerHTML = '<div class="layer-empty">暂无曲线分区：用上方「钢笔画分区」自己画，或一键添加白肚皮、八字白脸、三花斑块</div>';
-    } else {
-      regions.forEach((r, idx) => {
-        const item = document.createElement('div');
-        item.className = 'layer-item' + (idx === editingRegionIdx ? ' editing' : '');
-
-        const meta = document.createElement('div');
-        meta.className = 'layer-meta';
-        const cp = document.createElement('input');
-        cp.type = 'color';
-        cp.value = Spec.isValidHex(r.fill.slice(0, 7)) ? r.fill.slice(0, 7) : '#FAF4EA';
-        cp.addEventListener('input', () => {
-          r.fill = cp.value.toUpperCase();
-          syncSkin(true);
-        });
-        const text = document.createElement('div');
-        const twinTag = r._twin && regions.some((o) => o !== r && o._twin === r._twin) ? ' · <span class="twin-tag">对称联动</span>' : '';
-        text.innerHTML = `<div class="layer-title">${r._label || `分区 #${idx + 1}`}</div><div class="layer-sub">${SPACE_NAMES[r.space] || r.space} · ${r.anchors.length} 锚点${twinTag}</div>`;
-        meta.appendChild(cp);
-        meta.appendChild(text);
-
-        const acts = document.createElement('div');
-        acts.className = 'layer-actions';
-        if (r.space === 'body' || r.space === 'head' || r.space === 'skull' || r.space === 'tail') {
-          const editBtn = document.createElement('button');
-          editBtn.type = 'button';
-          editBtn.className = 'mini-btn' + (idx === editingRegionIdx ? ' active' : '');
-          editBtn.textContent = idx === editingRegionIdx ? '编辑中' : '调锚点';
-          editBtn.addEventListener('click', () => {
-            if (pen) exitPen();
-            editingRegionIdx = editingRegionIdx === idx ? -1 : idx;
-            editModeBanner.hidden = editingRegionIdx < 0;
-            renderRegionsAndMarksUI();
-          });
-          acts.appendChild(editBtn);
-        }
-        if (Spec.canMirror(r.space)) {
-          const mirBtn = document.createElement('button');
-          mirBtn.type = 'button';
-          mirBtn.className = 'mini-btn';
-          mirBtn.textContent = '镜像';
-          mirBtn.title = '在另一侧加一个左右对称的副本，之后调锚点两边会一起动';
-          mirBtn.addEventListener('click', () => {
-            if (regions.length >= 64) { showToast('最多 64 个分区'); return; }
-            if (r._twin) for (const o of regions) if (o !== r && o._twin === r._twin) delete o._twin;
-            r._twin = newTwinId();
-            const m = Spec.mirrorRegion(r);
-            m._label = `${r._label || `分区 #${idx + 1}`} · 镜像`;
-            regions.splice(idx + 1, 0, m);
-            if (editingRegionIdx > idx) editingRegionIdx++;
-            syncSkin(true);
-            showToast('已加上对称副本');
-          });
-          acts.appendChild(mirBtn);
-        }
-        if (r.space === 'skull') {
-          acts.appendChild(makeSkullFixButton(() => {
-            Spec.migrateSkullRegion(r);
-            if (r._twin) for (const o of regions) if (o !== r && o._twin === r._twin) Spec.migrateSkullRegion(o);
-          }));
-        }
-        const delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'mini-btn danger';
-        delBtn.textContent = '删除';
-        delBtn.addEventListener('click', () => {
-          if (r._twin) for (const o of regions) if (o !== r && o._twin === r._twin) delete o._twin;
-          regions.splice(idx, 1);
-          if (editingRegionIdx === idx) { editingRegionIdx = -1; editModeBanner.hidden = true; }
-          else if (editingRegionIdx > idx) editingRegionIdx--;
-          syncSkin(true);
-        });
-        acts.appendChild(delBtn);
-
-        item.appendChild(meta);
-        item.appendChild(acts);
-        rList.appendChild(item);
-      });
-    }
-
-    const mList = document.getElementById('marks-list');
-    mList.innerHTML = '';
-    if (marks.length === 0) {
-      mList.innerHTML = '<div class="layer-empty">暂无条纹图形（虎斑 M 纹或尾巴环纹会显示在这里）</div>';
-    } else {
-      // Group summary if > 10 marks so list stays tidy
-      const previewCount = Math.min(marks.length, 10);
-      for (let i = 0; i < previewCount; i++) {
-        const m = marks[i];
-        const item = document.createElement('div');
-        item.className = 'layer-item';
-        const col = m.color || rawSkin.palette.stripes || '#555555';
-        item.innerHTML = `
-          <div class="layer-meta">
-            <span style="width:18px;height:18px;border-radius:5px;background:${col};display:inline-block;border:1px solid rgba(0,0,0,0.12)"></span>
-            <div>
-              <div class="layer-title">${m.kind === 'stroke' ? '条纹笔触' : '多边形花纹'} #${i + 1}</div>
-              <div class="layer-sub">${SPACE_NAMES[m.space] || m.space} · ${m.points.length} 点</div>
-            </div>
-          </div>
-        `;
-        const acts = document.createElement('div');
-        acts.className = 'layer-actions';
-        if (Spec.canMirror(m.space)) {
-          const mir = document.createElement('button');
-          mir.type = 'button';
-          mir.className = 'mini-btn';
-          mir.textContent = '镜像';
-          mir.title = '在另一侧加一条左右对称的条纹';
-          mir.addEventListener('click', () => {
-            if (marks.length >= Spec.MAX_MARKS) { showToast(`最多 ${Spec.MAX_MARKS} 条条纹`); return; }
-            marks.splice(i + 1, 0, Spec.mirrorMark(m));
-            syncSkin(true);
-            showToast('已加上对称条纹');
-          });
-          acts.appendChild(mir);
-        }
-        if (m.space === 'skull') acts.appendChild(makeSkullFixButton(() => Spec.migrateSkullMark(m)));
-        const del = document.createElement('button');
-        del.type = 'button';
-        del.className = 'mini-btn danger';
-        del.textContent = '删除';
-        del.addEventListener('click', () => {
-          marks.splice(i, 1);
-          syncSkin(true);
-        });
-        acts.appendChild(del);
-        item.appendChild(acts);
-        mList.appendChild(item);
+  const btnCopyJson = document.getElementById('btn-copy-json');
+  if (btnCopyJson) {
+    btnCopyJson.addEventListener('click', async () => {
+      const txt = (document.getElementById('json-preview') || {}).textContent || '';
+      try {
+        await navigator.clipboard.writeText(txt);
+        showToast('已复制 .kurocat JSON 到剪贴板');
+      } catch (_) {
+        showToast('复制失败，请手动选中复制');
       }
-      if (marks.length > previewCount) {
-        const more = document.createElement('div');
-        more.className = 'layer-empty';
-        more.textContent = `另外还有 ${marks.length - previewCount} 条图形`;
-        mList.appendChild(more);
-      }
-    }
+    });
   }
-
-  document.querySelectorAll('[data-add-preset]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const kind = btn.dataset.addPreset;
-      rawSkin.regions = rawSkin.regions || [];
-      rawSkin.marks = rawSkin.marks || [];
-      if (kind === 'tabbyForehead') {
-        const col = rawSkin.palette.stripes || '#8C5222';
-        rawSkin.marks.push(...Spec.makeTabbyForeheadMarks(col, 0.65));
-      } else if (kind === 'tailRings') {
-        const col = rawSkin.palette.stripes || '#8C5222';
-        rawSkin.marks.push(...Spec.makeTailRingMarks(col, 0.65));
-      } else if (kind === 'armRings') {
-        const col = rawSkin.palette.stripes || '#6E4C32';
-        rawSkin.marks = rawSkin.marks.filter((m) => m.space !== 'leftArm' && m.space !== 'rightArm');
-        rawSkin.marks.push(...Spec.makeArmRingMarks(col, 0.78, 3, 2.8, 'both'));
-      } else {
-        const white = rawSkin.palette.belly || '#FAF4EA';
-        const added = Spec.makePresetRegion(kind, kind.includes('Patch') ? undefined : white);
-        if (Array.isArray(added)) rawSkin.regions.push(...added);
-        else if (added) rawSkin.regions.push(added);
-      }
-      syncSkin(true);
-      showToast('已添加花纹图层');
-    });
-  });
-
-  document.getElementById('btn-clear-marks').addEventListener('click', () => {
-    rawSkin.marks = [];
-    syncSkin(true);
-    showToast('已清空所有条纹图形');
-  });
-
-  // --- Arm Stripes Customizer ---
-  (() => {
-    let armSides = 'both';
-    const sidesWrap = document.getElementById('arm-stripe-sides');
-    const colInput = document.getElementById('arm-stripe-color');
-    const colHex = document.getElementById('arm-stripe-color-hex');
-    const cntInput = document.getElementById('arm-stripe-count');
-    const cntVal = document.getElementById('arm-stripe-count-val');
-    const widInput = document.getElementById('arm-stripe-width');
-    const widVal = document.getElementById('arm-stripe-width-val');
-    const alpInput = document.getElementById('arm-stripe-alpha');
-    const alpVal = document.getElementById('arm-stripe-alpha-val');
-    const btnApply = document.getElementById('btn-apply-arm-stripes');
-    const btnClear = document.getElementById('btn-clear-arm-stripes');
-    if (!btnApply) return;
-
-    const applyArmStripes = (pushHist) => {
-      rawSkin.marks = (rawSkin.marks || []).filter((m) => m.space !== 'leftArm' && m.space !== 'rightArm');
-      rawSkin.marks.push(...Spec.makeArmRingMarks(
-        colInput.value,
-        parseFloat(alpInput.value),
-        parseInt(cntInput.value, 10),
-        parseFloat(widInput.value),
-        armSides
-      ));
-      syncSkin(!!pushHist);
-    };
-
-    sidesWrap.querySelectorAll('[data-arm-side]').forEach((b) => {
-      b.addEventListener('click', () => {
-        armSides = b.dataset.armSide;
-        sidesWrap.querySelectorAll('[data-arm-side]').forEach((x) => x.classList.toggle('active', x === b));
-        if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) {
-          applyArmStripes(true);
-        }
-      });
-    });
-
-    colInput.addEventListener('input', () => {
-      colHex.textContent = colInput.value.toUpperCase();
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) applyArmStripes(false);
-    });
-    colInput.addEventListener('change', () => {
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) syncSkin(true);
-    });
-    cntInput.addEventListener('input', () => {
-      cntVal.textContent = `${cntInput.value} 条`;
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) applyArmStripes(false);
-    });
-    cntInput.addEventListener('change', () => {
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) syncSkin(true);
-    });
-    widInput.addEventListener('input', () => {
-      widVal.textContent = parseFloat(widInput.value).toFixed(1);
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) applyArmStripes(false);
-    });
-    widInput.addEventListener('change', () => {
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) syncSkin(true);
-    });
-    alpInput.addEventListener('input', () => {
-      alpVal.textContent = `${Math.round(parseFloat(alpInput.value) * 100)}%`;
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) applyArmStripes(false);
-    });
-    alpInput.addEventListener('change', () => {
-      if ((rawSkin.marks || []).some((m) => m.space === 'leftArm' || m.space === 'rightArm')) syncSkin(true);
-    });
-
-    btnApply.addEventListener('click', () => {
-      applyArmStripes(true);
-      showToast('已应用自定义胳膊条纹（静坐与打字实时生效）');
-    });
-    btnClear.addEventListener('click', () => {
-      rawSkin.marks = (rawSkin.marks || []).filter((m) => m.space !== 'leftArm' && m.space !== 'rightArm');
-      syncSkin(true);
-      showToast('已清除胳膊条纹');
-    });
-  })();
-
-  document.getElementById('btn-copy-json').addEventListener('click', async () => {
-    const txt = document.getElementById('json-preview').textContent;
-    try {
-      await navigator.clipboard.writeText(txt);
-      showToast('已复制 .kurocat JSON 到剪贴板');
-    } catch (_) {
-      showToast('复制失败，请手动选中复制');
-    }
-  });
 
   // --- Accessories & Custom Sticker Upload Tab (配饰装扮) ---
   function selectDecoration(idx) {
@@ -3026,10 +2365,10 @@
     const isDraggingNow = !!(live.draggingCat && live.draggingCat.engaged) || currentPose === 'drag';
     const isEditingNow = editingRegionIdx >= 0 || !!pen || !!draggingDeco;
 
-    // Smoothly apply / spring-return the page-level drag translation of the cat canvas
-    if (live.draggingCat && live.draggingCat.engaged) {
+    // Smoothly apply / spring-return the page-level drag translation of the cat canvas (in hero mode only; floating mode repositions .stage-column directly)
+    if (!isFloatingPetMode() && live.draggingCat && live.draggingCat.engaged) {
       catCanvas.style.transform = `translate3d(${live.dragOffsetX.toFixed(1)}px, ${live.dragOffsetY.toFixed(1)}px, 0)`;
-    } else if (Math.abs(live.dragOffsetX) > 0.4 || Math.abs(live.dragOffsetY) > 0.4) {
+    } else if (!isFloatingPetMode() && (Math.abs(live.dragOffsetX) > 0.4 || Math.abs(live.dragOffsetY) > 0.4)) {
       const springK = Math.min(1, dt * 13);
       live.dragOffsetX = lerp(live.dragOffsetX, 0, springK);
       live.dragOffsetY = lerp(live.dragOffsetY, 0, springK);
@@ -3038,6 +2377,9 @@
       live.dragOffsetX = 0;
       live.dragOffsetY = 0;
       catCanvas.style.transform = '';
+      setCatDragClasses(false);
+    }
+    if (isFloatingPetMode() && !(live.draggingCat && live.draggingCat.engaged)) {
       setCatDragClasses(false);
     }
 
@@ -3271,33 +2613,15 @@
     getRawSkin: () => rawSkin,
     getResolvedSkin: () => resolvedSkin,
     applyPaletteChange,
-    getExportObject: () => {
-      const previewB64 = Renderer.renderPreviewBase64(resolvedSkin, kbTheme, eyeTheme);
-      return Spec.sanitizeForExport(rawSkin, previewB64);
-    },
-    getExportJson: () => {
-      const previewB64 = Renderer.renderPreviewBase64(resolvedSkin, kbTheme, eyeTheme);
-      return JSON.stringify(Spec.sanitizeForExport(rawSkin, previewB64), null, 2);
-    },
+    getExportObject: () => buildExportObjectWithPreview(),
+    getExportJson: () => JSON.stringify(buildExportObjectWithPreview(), null, 2),
     loadExternalSkin: (specObj, badgeText) => {
       const check = Spec.validateRawSkin(specObj);
       if (!check.ok) {
         showToast('载入失败：' + check.error);
         return false;
       }
-      if (pen) exitPen();
-      rawSkin = deepClone(specObj);
-      if (!rawSkin.regions) rawSkin.regions = [];
-      if (!rawSkin.marks) rawSkin.marks = [];
-      if (!rawSkin.decorations) rawSkin.decorations = [];
-      if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
-      editingRegionIdx = -1;
-      selectedDecoIdx = -1;
-      editModeBanner.hidden = true;
-      decoBanner.hidden = true;
-      stageCoatBadge.textContent = badgeText || `广场皮肤 · ${rawSkin.name}`;
-      syncSkin();
-      showToast(`已在工坊打开「${rawSkin.name}」`);
+      loadAndRasterizeSkin(deepClone(specObj), badgeText || `广场皮肤 · ${specObj.name}`, `已在工坊打开「${specObj.name}」并生成透明纸图层`);
       return true;
     },
     addExternalDecoration: (decoObj) => {
@@ -3334,7 +2658,8 @@
     commitHistoryNow,
     getRawSkin: () => rawSkin,
     getResolvedSkin: () => resolvedSkin,
-    syncSkin: (pushHist) => syncSkin(pushHist),
+    syncSkin: (pushHist, syncOpts) => syncSkin(pushHist, syncOpts),
+    refreshFloatingPet: applyFloatingPetLayout,
     undo: () => { const b = document.getElementById('btn-undo'); if (b && !b.disabled) b.click(); },
     redo: () => { const b = document.getElementById('btn-redo'); if (b && !b.disabled) b.click(); },
     exportSkin: () => { const b = document.getElementById('btn-export'); if (b) b.click(); },
@@ -3413,8 +2738,9 @@
   // so patterns that don't follow the head (e.g. legacy 头壳) show up without wiggling the mouse.
   // (syncSkin calls renderTurnCheck, possibly before this point runs, so it looks everything up itself.)
   function renderTurnCheck() {
+    const modal = document.getElementById('turn-check-modal');
     const turnCheck = document.getElementById('turn-check');
-    if (!turnCheck || turnCheck.hidden) return;
+    if (!modal || modal.hidden || !turnCheck) return;
     if (!renderTurnCheck.scratch) {
       renderTurnCheck.scratch = document.createElement('canvas');
       renderTurnCheck.scratch.width = 720;
@@ -3431,35 +2757,199 @@
       Renderer.drawScene(sctx, skin, st, { kbTheme, eyeTheme, whiteOutline: showWhiteOutline });
       const c = cv.getContext('2d');
       c.clearRect(0, 0, cv.width, cv.height);
-      // Ears to shoulders: logical x 84..284, y 6..206 of the 360×320 scene (rendered at 2×).
       c.drawImage(turnScratch, 168, 12, 400, 400, 0, 0, cv.width, cv.height);
     });
   }
 
-  const turnCheck = document.getElementById('turn-check');
+  const turnCheckModal = document.getElementById('turn-check-modal');
+  const openTurnCheckModal = () => {
+    if (!turnCheckModal) return;
+    turnCheckModal.hidden = false;
+    renderTurnCheck();
+  };
+  const closeTurnCheckModal = () => {
+    if (turnCheckModal) turnCheckModal.hidden = true;
+  };
   const btnTurnCheck = document.getElementById('btn-turn-check');
-  if (btnTurnCheck && turnCheck) {
-    btnTurnCheck.addEventListener('click', () => {
-      turnCheck.hidden = !turnCheck.hidden;
-      btnTurnCheck.classList.toggle('active', !turnCheck.hidden);
-      btnTurnCheck.setAttribute('aria-expanded', String(!turnCheck.hidden));
-      renderTurnCheck();
-    });
+  const btnTurnCheckHero = document.getElementById('btn-turn-check-hero');
+  const btnCloseTurnCheck = document.getElementById('btn-close-turn-check');
+  if (btnTurnCheck) btnTurnCheck.addEventListener('click', openTurnCheckModal);
+  if (btnTurnCheckHero) btnTurnCheckHero.addEventListener('click', openTurnCheckModal);
+  if (btnCloseTurnCheck) btnCloseTurnCheck.addEventListener('click', closeTurnCheckModal);
+  if (turnCheckModal) {
+    turnCheckModal.addEventListener('click', (e) => { if (e.target === turnCheckModal) closeTurnCheckModal(); });
   }
 
-  const stagePoseBar = document.getElementById('stage-pose-bar');
-  if (stagePoseBar) {
-    stagePoseBar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.pose-pill[data-pose]');
-      if (!btn) return;
-      setWorkshopPose(btn.dataset.pose);
+  // Floating desktop pet toolbar, resize handle, settings popover, and minimize bubble
+  (() => {
+    const resizeBtn = document.getElementById('btn-pet-resize');
+    const settingsBtn = document.getElementById('btn-pet-settings');
+    const settingsPop = document.getElementById('floating-pet-settings');
+    const minBtn = document.getElementById('btn-pet-minimize');
+    const bubble = document.getElementById('floating-pet-bubble');
+    const smallerBtn = document.getElementById('btn-pet-smaller');
+    const largerBtn = document.getElementById('btn-pet-larger');
+    const resetPosBtn = document.getElementById('btn-pet-reset-pos');
+
+    if (settingsBtn && settingsPop) {
+      settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsPop.hidden = !settingsPop.hidden;
+        settingsBtn.classList.toggle('active', !settingsPop.hidden);
+        if (stageColumn) stageColumn.classList.toggle('is-floating-active', !settingsPop.hidden);
+      });
+      document.addEventListener('click', (e) => {
+        if (!settingsPop.hidden && !settingsPop.contains(e.target) && e.target !== settingsBtn) {
+          settingsPop.hidden = true;
+          settingsBtn.classList.remove('active');
+          if (stageColumn) stageColumn.classList.remove('is-floating-active');
+        }
+      });
+    }
+
+    if (minBtn) {
+      minBtn.addEventListener('click', () => {
+        petLayout.minimized = true;
+        if (settingsPop) settingsPop.hidden = true;
+        applyFloatingPetLayout();
+        savePetLayout();
+      });
+    }
+    if (bubble) {
+      bubble.addEventListener('click', () => {
+        petLayout.minimized = false;
+        applyFloatingPetLayout();
+        savePetLayout();
+      });
+    }
+    if (smallerBtn) {
+      smallerBtn.addEventListener('click', () => {
+        petLayout.width = Spec.clamp(petLayout.width - 28, 136, 480);
+        applyFloatingPetLayout();
+        savePetLayout();
+      });
+    }
+    if (largerBtn) {
+      largerBtn.addEventListener('click', () => {
+        petLayout.width = Spec.clamp(petLayout.width + 28, 136, 480);
+        applyFloatingPetLayout();
+        savePetLayout();
+      });
+    }
+    if (resetPosBtn) {
+      resetPosBtn.addEventListener('click', () => {
+        petLayout = defaultPetLayout();
+        applyFloatingPetLayout();
+        savePetLayout();
+      });
+    }
+
+    if (resizeBtn) {
+      let resizing = null;
+      resizeBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = stageColumn.getBoundingClientRect();
+        resizing = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, startW: r.width };
+        resizeBtn.setPointerCapture(e.pointerId);
+        stageColumn.classList.add('is-floating-active');
+      });
+      resizeBtn.addEventListener('pointermove', (e) => {
+        if (!resizing || e.pointerId !== resizing.pointerId) return;
+        const delta = Math.max(e.clientX - resizing.startX, (e.clientY - resizing.startY) * (360 / 320));
+        petLayout.width = Spec.clamp(resizing.startW + delta, 136, 480);
+        applyFloatingPetLayout();
+      });
+      const finishResize = (e) => {
+        if (!resizing || e.pointerId !== resizing.pointerId) return;
+        resizing = null;
+        stageColumn.classList.remove('is-floating-active');
+        savePetLayout();
+      };
+      resizeBtn.addEventListener('pointerup', finishResize);
+      resizeBtn.addEventListener('pointercancel', finishResize);
+    }
+
+    if (stageColumn) {
+      stageColumn.addEventListener('wheel', (e) => {
+        if (!isFloatingPetMode() || !(e.ctrlKey || e.altKey)) return;
+        e.preventDefault();
+        petLayout.width = Spec.clamp(petLayout.width + (e.deltaY < 0 ? 18 : -18), 136, 480);
+        applyFloatingPetLayout();
+        savePetLayout();
+      }, { passive: false });
+      window.addEventListener('resize', () => {
+        if (isFloatingPetMode()) applyFloatingPetLayout();
+      });
+    }
+  })();
+
+  // Boot: restore local IndexedDB multi-layer project if present, otherwise rasterize default preset
+  if (PixelLayers) {
+    PixelLayers.setRawSkinGetter(() => rawSkin);
+    PixelLayers.onChange(() => updateHistoryButtons());
+    PixelLayers.rasterizeFromSkin(rawSkin, resolvedSkin, eyeTheme, true);
+    PixelLayers.loadFromIndexedDB().then(async (savedProj) => {
+      if (savedProj && savedProj.parts) {
+        if (savedProj.skin && Spec.validateRawSkin(savedProj.skin).ok) {
+          rawSkin = savedProj.skin;
+          if (!rawSkin.decorations) rawSkin.decorations = [];
+          if (!rawSkin.shape) rawSkin.shape = { build: 'standard' };
+        }
+        await PixelLayers.restoreProject(savedProj);
+        syncSkin();
+        commitHistoryNow();
+      }
     });
   }
-
-  // Boot
   syncSkin();
   commitHistoryNow();
   updateHistoryButtons();
   loadTemplatesUI();
+
+  // v1.6.0 Changelog Modal (auto-shown once per release, reopenable from top bar or help popover)
+  (() => {
+    const CHANGELOG_VERSION = '1.6.0';
+    const CHANGELOG_SEEN_KEY = 'kurocat.workshop.seenChangelogVersion';
+    const modal = document.getElementById('changelog-modal');
+    const btnOpen = document.getElementById('btn-open-changelog');
+    const btnHelpOpen = document.getElementById('btn-help-open-changelog');
+    const btnClose = document.getElementById('btn-close-changelog');
+    const btnAck = document.getElementById('btn-changelog-ack');
+    const helpPop = document.getElementById('help-popover');
+
+    const openChangelog = () => {
+      if (!modal) return;
+      if (helpPop) helpPop.hidden = true;
+      modal.hidden = false;
+    };
+    const closeChangelog = (markSeen = true) => {
+      if (!modal) return;
+      modal.hidden = true;
+      if (markSeen) {
+        try { localStorage.setItem(CHANGELOG_SEEN_KEY, CHANGELOG_VERSION); } catch (_) {}
+      }
+    };
+
+    if (btnOpen) btnOpen.addEventListener('click', openChangelog);
+    if (btnHelpOpen) btnHelpOpen.addEventListener('click', openChangelog);
+    if (btnClose) btnClose.addEventListener('click', () => closeChangelog(true));
+    if (btnAck) btnAck.addEventListener('click', () => closeChangelog(true));
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeChangelog(true);
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && !modal.hidden) closeChangelog(true);
+    });
+
+    try {
+      if (localStorage.getItem(CHANGELOG_SEEN_KEY) !== CHANGELOG_VERSION) {
+        setTimeout(openChangelog, 120);
+      }
+    } catch (_) {}
+  })();
+
   requestAnimationFrame(tick);
 })();
