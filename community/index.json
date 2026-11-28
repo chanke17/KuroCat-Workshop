@@ -1,7 +1,29 @@
 {
-  "generatedAt": "2026-11-27T16:24:02.207Z",
-  "count": 69,
+  "generatedAt": "2026-11-28T04:32:20.861Z",
+  "count": 70,
   "skins": [
+    {
+      "slug": "naigai-silver-shaded",
+      "title": "奶盖儿",
+      "author": "毓惜",
+      "authorUrl": "",
+      "description": "十多斤大宝贝，银渐层蓝猫之串、喜食小草之猫、偷走玩具之猫、偷喝奶茶之猫、沙发破坏之猫、半夜挠门之猫、爱看游戏之猫、喜爱出门之猫、已经绝育之猫、尾巴钓鱼专家、桌面整理大师",
+      "tags": [
+        "邪恶银渐层"
+      ],
+      "createdAt": "2026-11-28",
+      "skinPath": "./community/naigai-silver-shaded/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 2,
+      "regionCount": 2,
+      "sizeBytes": 109555,
+      "paletteSummary": [
+        "#1F2024",
+        "#FAF7F1",
+        "#7BA375"
+      ]
+    },
     {
       "slug": "angel-cloud-light",
       "title": "云端天使",
