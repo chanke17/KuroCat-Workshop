@@ -2345,8 +2345,8 @@
       }
 
       if (limbTex) {
-        // Fill paw base underneath texture first, then draw unified limb+paw texture so paw tips are never covered
-        ctx.fillStyle = rgbaToCss(limbBaseCol);
+        // Fill paw base with limbPawCol underneath texture so paw tip margins never leak limbBaseCol
+        ctx.fillStyle = rgbaToCss(limbPawCol);
         ctx.beginPath();
         ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -5266,6 +5266,7 @@
       traceLimbFill(limb);
       ctx.clip();
       const grad = ctx.createLinearGradient(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
+      let usedTransparentFrontFill = false;
       if (isDazed) {
         grad.addColorStop(0.0, '#E3C99F');
         grad.addColorStop(1.0, '#C8A77A');
@@ -5280,24 +5281,31 @@
         grad.addColorStop(0.0, rgbaToCss(lg.from));
         grad.addColorStop(clamp(lg.stop || 0.5, 0.1, 0.9), rgbaToCss(lg.to));
         grad.addColorStop(1.0, rgbaToCss(lg.to));
-      } else {
-        const shoulderCol = pal.body;
-        if (!limb.isBehindBody && !sameColor(pal.legs, shoulderCol)) {
-          grad.addColorStop(0.0, rgbaToCss(shoulderCol));
-          grad.addColorStop(0.14, rgbaToCss(shoulderCol));
-          grad.addColorStop(0.42, rgbaToCss(pal.legs));
-          grad.addColorStop(0.82, rgbaToCss(pal.paws));
+      } else if (!limb.isBehindBody) {
+        // Match seated drawIdleFrontLeg 1:1 (transparent shoulder fade into legs, then arm marks/texture, then paw cuff)
+        if (limb.armSpace && !(skin.partGradients && skin.partGradients[limb.armSpace]) && skin.idleLegsTinted !== false) {
+          grad.addColorStop(0.04, rgbaToCss(pal.legs, 0));
+          grad.addColorStop(0.32, rgbaToCss(pal.legs));
+          grad.addColorStop(1.0, rgbaToCss(pal.legs));
+          usedTransparentFrontFill = true;
         } else {
-          const legCol = limb.isBehindBody ? (pal.hindLeg || pal.legs) : pal.legs;
-          const pawCol = limb.isBehindBody ? (pal.hindPaw || pal.paws) : pal.paws;
-          grad.addColorStop(0.22, rgbaToCss(legCol));
-          grad.addColorStop(0.75, rgbaToCss(pawCol));
+          ctx.fillStyle = rgbaToCss(pal.belly || pal.body);
+          ctx.fillRect(0, 0, 360, 320);
+          usedTransparentFrontFill = true;
         }
+      } else {
+        const legCol = pal.hindLeg || pal.legs;
+        const pawCol = pal.hindPaw || pal.paws;
+        grad.addColorStop(0.22, rgbaToCss(legCol));
+        grad.addColorStop(0.75, rgbaToCss(pawCol));
       }
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 360, 320);
+      if (!usedTransparentFrontFill || (limb.armSpace && !(skin.partGradients && skin.partGradients[limb.armSpace]) && skin.idleLegsTinted !== false)) {
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 360, 320);
+      }
 
       // Map custom leftArm / rightArm / hindLeg regions & marks directly onto the dangling limbs!
+      const dragLimbTex = limb.armSpace ? getPartTextureSource(skin, limb.armSpace) : null;
       if (limb.armSpace && skin.hasPartArt && skin.hasPartArt(limb.armSpace)) {
         const sign = limb.armSpace === 'leftArm' ? -1 : ((limb.armSpace === 'hindLeg' && limb.bendX < 0) ? -1 : 1);
         const armMap = (p) => {
@@ -5314,7 +5322,6 @@
         };
         for (const r of skin.regions) if (r.space === limb.armSpace) drawRegion(ctx, r, armMap);
         for (const mk of skin.marks) if (mk.space === limb.armSpace) drawMark(ctx, mk, 'round', armMap);
-        const dragLimbTex = getPartTextureSource(skin, limb.armSpace);
         if (dragLimbTex) {
           const samples = [];
           const dxD = limb.tip.x - limb.root.x, dyD = limb.tip.y - limb.root.y;
@@ -5339,6 +5346,17 @@
           }
           blitStripMesh(ctx, dragLimbTex, samples, PART_UV.limb);
         }
+      }
+      // Seated-consistent paw cuff overlay AFTER arm marks (matches desktop drawDragLimb & drawIdleFrontLeg)
+      if (!dragLimbTex && !isDazed && !skin.colorpoint && !limb.isBehindBody &&
+          limb.armSpace && !(skin.partGradients && skin.partGradients[limb.armSpace]) &&
+          !sameColor(pal.paws, pal.legs)) {
+        const cuffGrad = ctx.createLinearGradient(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
+        cuffGrad.addColorStop(0.74, rgbaToCss(pal.paws, 0));
+        cuffGrad.addColorStop(0.85, rgbaToCss(pal.paws));
+        cuffGrad.addColorStop(1.0, rgbaToCss(pal.paws));
+        ctx.fillStyle = cuffGrad;
+        ctx.fillRect(0, 0, 360, 320);
       }
       ctx.restore();
 
@@ -5699,6 +5717,7 @@
       }
 
       const dragBodyTex = getPartTextureSource(skin, 'body');
+      const dragHeadTex = getPartTextureSource(skin, 'head');
       if (dragBodyTex) {
         const samples = [];
         const y0 = PART_UV.body.y0, y1 = PART_UV.body.y1;
@@ -5712,12 +5731,13 @@
           });
         }
         ctx.save();
-        drawPolyline(ctx, dragBodyJawSide, true, headMap);
-        ctx.clip();
+        if (!dragHeadTex) {
+          drawPolyline(ctx, dragBodyJawSide, true, headMap);
+          ctx.clip();
+        }
         blitStripMesh(ctx, dragBodyTex, samples, { x0: y0, x1: y1 }, true);
         ctx.restore();
       }
-      const dragHeadTex = getPartTextureSource(skin, 'head');
       if (dragHeadTex) {
         const yawRadD = (state.headYaw || 0) * RIG.yawPerUnit;
         const pitchRadD = (state.headPitch || 0) * RIG.pitchPerUnit;
@@ -5746,17 +5766,19 @@
         ctx.restore();
       }
 
-      // Subtle soft chin shadow curve (gentle depth cue without cutting a hard ring through solid coats)
-      ctx.save();
-      ctx.strokeStyle = isBlackRim
-        ? 'rgba(255,255,255,0.16)'
-        : (pal.outline ? rgbaToCss(pal.outline, 0.45) : 'rgba(46,38,31,0.16)');
-      ctx.lineWidth = isBlackRim ? 1.05 : 1.0;
-      ctx.beginPath();
-      ctx.moveTo(headCenter.x - cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs);
-      ctx.quadraticCurveTo(headCenter.x, headCenter.y + chinY + 3.5 * hs, headCenter.x + cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs);
-      ctx.stroke();
-      ctx.restore();
+      // Subtle soft chin shadow curve (skip when custom head pixel texture is painted, to avoid a double-chin seam)
+      if (!dragHeadTex) {
+        ctx.save();
+        ctx.strokeStyle = isBlackRim
+          ? 'rgba(255,255,255,0.16)'
+          : (pal.outline ? rgbaToCss(pal.outline, 0.45) : 'rgba(46,38,31,0.16)');
+        ctx.lineWidth = isBlackRim ? 1.05 : 1.0;
+        ctx.beginPath();
+        ctx.moveTo(headCenter.x - cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs);
+        ctx.quadraticCurveTo(headCenter.x, headCenter.y + chinY + 3.5 * hs, headCenter.x + cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // 5. Native KuroCat face features (normal authentic almond eyes — no round bug-eyes!)
