@@ -104,7 +104,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261128b" />
+  <link rel="stylesheet" href="styles.css?v=20261128c" />
 </head>
 <body>
   <div class="studio-shell">
@@ -345,12 +345,16 @@
             <div class="exploded-canvas-wrap" id="exploded-canvas-wrap">
               <canvas id="exploded-canvas" width="600" height="460" aria-label="小猫拆件与组件画笔编辑区"></canvas>
 
-              <!-- Top-left quick mode pill: Select / Brush / Eraser (PS-style instant switch) -->
+              <!-- Top-left quick mode pill: Select / Brush / Eraser + Active Layer Pill -->
               <div class="ps-quick-tools" id="ps-quick-tools" hidden role="toolbar" aria-label="常用工具快捷切换">
                 <button type="button" class="ps-quick-btn" data-quick-tool="select" title="选择框（V）：点击或框选已画图案，拖动改位置、拖四角缩放">↖ 选择</button>
                 <button type="button" class="ps-quick-btn active" data-quick-tool="draw" title="画笔（B）：切回当前画笔继续绘制">🖌 画笔</button>
                 <button type="button" class="ps-quick-btn" data-quick-tool="eraser" title="橡皮（E）：擦除当前图层笔触">橡皮</button>
               </div>
+              <button type="button" class="ps-layer-pill" id="ps-active-layer-pill" hidden title="点击展开或切换当前编辑的图层">
+                <span class="ps-layer-pill-dot"></span>
+                <span>当前层：<strong id="ps-active-layer-name">花纹层 1</strong></span>
+              </button>
 
               <!-- Top-right PS-style collapsible floating corner panels (Brush / Body & Colors / Layers) -->
               <div class="ps-floating-corner" id="ps-floating-corner" hidden>
@@ -1392,7 +1396,7 @@
   <script src="decorations.js?v=20261125b"></script>
   <script src="photo-analyzer.js?v=20261125b"></script>
   <script src="app.js?v=20261127d"></script>
-  <script src="exploded-studio.js?v=20261128b"></script>
+  <script src="exploded-studio.js?v=20261128c"></script>
   <script src="plaza.js?v=20261127a"></script>
 </body>
 </html>

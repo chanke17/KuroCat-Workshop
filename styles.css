@@ -5060,3 +5060,113 @@ textarea {
 .ps-drawer-pane .brush-num-input {
   width: 52px;
 }
+
+/* Active layer pill & inline editable layer controls */
+.ps-layer-pill {
+  position: absolute;
+  top: 46px;
+  left: 10px;
+  z-index: 9;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.90);
+  border: 1px solid rgba(130, 112, 96, 0.22);
+  box-shadow: 0 2px 10px rgba(32, 24, 16, 0.06);
+  backdrop-filter: blur(8px);
+  font-size: 11.5px;
+  color: #6b5d50;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.ps-layer-pill[hidden] { display: none; }
+.ps-layer-pill:hover {
+  border-color: #d97736;
+  color: #3b2f26;
+}
+.ps-layer-pill.is-feature {
+  background: rgba(255, 246, 236, 0.96);
+  border-color: rgba(217, 119, 54, 0.55);
+  color: #a85118;
+}
+.ps-layer-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9f8f80;
+  flex-shrink: 0;
+}
+.ps-layer-pill.is-feature .ps-layer-pill-dot {
+  background: #d97736;
+}
+.ps-layer-pill strong {
+  font-weight: 700;
+  color: #2b231d;
+}
+.ps-layer-pill.is-feature strong {
+  color: #b85617;
+}
+
+.ctx-layer-inline {
+  margin: -1px 0 4px 12px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #fffaf3;
+  border: 1px solid #eed6be;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctx-inline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ctx-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e6dacb;
+  font-size: 11px;
+  color: #4a3f36;
+  cursor: pointer;
+}
+.ctx-mini-chip input[type="color"] {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.ctx-mini-btn {
+  appearance: none;
+  border: 1px solid #e2d5c5;
+  background: #ffffff;
+  color: #4a3f36;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.ctx-mini-btn:hover {
+  border-color: #d97736;
+  color: #d97736;
+}
+.ctx-mini-btn.danger:hover {
+  border-color: #dc4c4c;
+  color: #dc4c4c;
+}
+.ctx-inline-tip {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #8b7764;
+}

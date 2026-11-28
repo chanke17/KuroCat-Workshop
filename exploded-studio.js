@@ -120,6 +120,8 @@
   let drawerTitleEl = null;
   let brushDotEl = null;
   let layerCountEl = null;
+  let activeLayerPillEl = null;
+  let activeLayerNameEl = null;
   let selectionBarEl = null;
   let selInfoEl = null;
   let skeletonToggleBtn = null;
@@ -1429,6 +1431,55 @@
         }
         ctx.restore();
       }
+
+      // Active feature-layer focus highlight on canvas so the user clearly sees what layer they are editing
+      const curLayerId = activeLayerByPart[partId];
+      if (isFeatureLayerId(curLayerId)) {
+        ctx.save();
+        ctx.setLineDash([4.5 / effScale, 3.5 / effScale]);
+        ctx.strokeStyle = 'rgba(217, 119, 54, 0.92)';
+        ctx.lineWidth = 1.8 / effScale;
+        if (partId === 'head' && curLayerId === '__feat:eyes') {
+          const hs = PART_VIEW.head.scale;
+          for (let side = -1; side <= 1; side += 2) {
+            const e = toPartCanvas('head', { x: side * 17.2, y: -2 });
+            ctx.beginPath();
+            ctx.ellipse(e.x, e.y, 11.2 * hs, 10.2 * hs, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        } else if (partId === 'head' && curLayerId === '__feat:nose') {
+          const hs = PART_VIEW.head.scale;
+          const n = toPartCanvas('head', { x: 0, y: 8.2 });
+          ctx.beginPath();
+          ctx.ellipse(n.x, n.y, 5.8 * hs, 4.2 * hs, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (partId === 'head' && curLayerId === '__feat:mouth') {
+          const hs = PART_VIEW.head.scale;
+          const m = toPartCanvas('head', { x: 0, y: 12.2 });
+          ctx.beginPath();
+          ctx.ellipse(m.x, m.y, 11.5 * hs, 6.0 * hs, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (partId === 'ears' && curLayerId === '__feat:earInner') {
+          const sign = unitSpace === 'leftEar' ? -1 : 1;
+          const cx = unitSpace === 'leftEar' ? CW * 0.29 : CW * 0.71;
+          traceEarTriangle(ctx, cx, CH * 0.80 - 10, sign, 1.32, 1.52, 1.0, skin.shape.earBaseWidth || 1, skin.shape.earPointiness || 1);
+          ctx.stroke();
+        } else if ((partId === 'leftArm' || partId === 'rightArm' || partId === 'hindLeg') && curLayerId === '__feat:paws') {
+          const bot = toPartCanvas(partId, { x: 100, y: 0 });
+          ctx.beginPath();
+          ctx.ellipse(bot.x, bot.y + 4, 72, 62, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (partId === 'tail' && curLayerId === '__feat:tailTip') {
+          const tipStart = toPartCanvas('tail', { x: 76, y: 0 });
+          const tipEnd = toPartCanvas('tail', { x: 100, y: 0 });
+          const hh = TAIL_EDGE_Y * TAIL_BOARD_Y;
+          ctx.strokeRect(tipStart.x, tipStart.y - hh - 3, (tipEnd.x - tipStart.x) + hh + 3, hh * 2 + 6);
+        } else if (curLayerId === '__feat:base') {
+          traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
     };
 
     if (partId === 'ears') {
@@ -1687,9 +1738,57 @@
   }
 
   // -------------------------------------------------------------------------
-  // PS-Style Per-Part Layer Stack (stored as workshop metadata, exported in order)
+  // PS-Style Per-Part Layer Stack (feature layers + paint layers + base layer)
   // -------------------------------------------------------------------------
   const activeLayerByPart = {};
+
+  const FEATURE_LAYERS_BY_PART = {
+    head: [
+      { id: '__feat:eyes', name: '眼睛层（虹膜/瞳孔）', position: 'top' },
+      { id: '__feat:nose', name: '鼻子层（纯色/手绘）', position: 'top' },
+      { id: '__feat:mouth', name: '嘴巴与胡须层', position: 'top' },
+      { id: '__feat:base', name: '头部底色 / 渐变层', position: 'bottom' }
+    ],
+    ears: [
+      { id: '__feat:earInner', name: '内耳层', position: 'top' },
+      { id: '__feat:base', name: '外耳底色 / 渐变层', position: 'bottom' }
+    ],
+    body: [
+      { id: '__feat:base', name: '躯干底色 / 渐变层', position: 'bottom' }
+    ],
+    leftArm: [
+      { id: '__feat:paws', name: '爪子与肉垫层', position: 'top' },
+      { id: '__feat:base', name: '手臂底色 / 渐变层', position: 'bottom' }
+    ],
+    rightArm: [
+      { id: '__feat:paws', name: '爪子与肉垫层', position: 'top' },
+      { id: '__feat:base', name: '手臂底色 / 渐变层', position: 'bottom' }
+    ],
+    hindLeg: [
+      { id: '__feat:paws', name: '后爪与肉垫层', position: 'top' },
+      { id: '__feat:base', name: '后腿底色 / 渐变层', position: 'bottom' }
+    ],
+    tail: [
+      { id: '__feat:tailTip', name: '尾尖层', position: 'top' },
+      { id: '__feat:base', name: '尾巴底色 / 渐变层', position: 'bottom' }
+    ]
+  };
+
+  function isFeatureLayerId(id) {
+    return typeof id === 'string' && id.indexOf('__feat:') === 0;
+  }
+
+  function getPartFeatureLayers(partId) {
+    return FEATURE_LAYERS_BY_PART[partId] || FEATURE_LAYERS_BY_PART.body;
+  }
+
+  function getFeatureLayerMeta(partId, layerId) {
+    const list = getPartFeatureLayers(partId);
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === layerId) return list[i];
+    }
+    return null;
+  }
 
   function getPartSpaces(partId) {
     const p = PART_BY_ID[partId];
@@ -1705,29 +1804,51 @@
       raw._layers[partId] = layers;
     }
     const spaces = getPartSpaces(partId);
-    const validIds = new Set(layers.map((l) => l.id));
+    const validPaintIds = new Set(layers.map((l) => l.id));
     if (Array.isArray(raw.marks)) {
       for (let i = 0; i < raw.marks.length; i++) {
         const m = raw.marks[i];
         if (!m || spaces.indexOf(m.space) === -1) continue;
-        if (!m._layerId || !validIds.has(m._layerId)) {
+        const isFeatMark = (partId === 'head') && (m._layerId === '__feat:nose' || m._layerId === '__feat:mouth');
+        if (!isFeatMark && (!m._layerId || !validPaintIds.has(m._layerId))) {
           m._layerId = layers[0].id;
         }
       }
     }
-    if (!activeLayerByPart[partId] || !validIds.has(activeLayerByPart[partId])) {
+    const cur = activeLayerByPart[partId];
+    const validFeat = isFeatureLayerId(cur) && !!getFeatureLayerMeta(partId, cur);
+    if (!cur || (!validPaintIds.has(cur) && !validFeat)) {
       activeLayerByPart[partId] = layers[layers.length - 1].id;
     }
     return layers;
   }
 
-  function getActiveLayer(raw, partId) {
+  function getActivePaintLayer(raw, partId) {
     const layers = ensurePartLayers(raw, partId);
     const id = activeLayerByPart[partId];
     for (let i = 0; i < layers.length; i++) {
       if (layers[i].id === id) return layers[i];
     }
     return layers[layers.length - 1];
+  }
+
+  function getCurrentLayerDisplayName(raw, partId) {
+    const id = activeLayerByPart[partId];
+    const feat = getFeatureLayerMeta(partId, id);
+    if (feat) return feat.name;
+    const paint = getActivePaintLayer(raw, partId);
+    return paint ? paint.name : '花纹层 1';
+  }
+
+  function updateActiveLayerPillUI(raw, partId) {
+    if (!activeLayerPillEl) return;
+    activeLayerPillEl.hidden = mode !== 'part';
+    if (mode !== 'part' || !raw) return;
+    const isFeat = isFeatureLayerId(activeLayerByPart[partId]);
+    activeLayerPillEl.classList.toggle('is-feature', isFeat);
+    if (activeLayerNameEl) {
+      activeLayerNameEl.textContent = getCurrentLayerDisplayName(raw, partId);
+    }
   }
 
   function syncPartMarksByLayers(raw, partId) {
@@ -1740,11 +1861,23 @@
       visById[layers[i].id] = layers[i].visible !== false;
       buckets[layers[i].id] = [];
     }
+    const featMouthMarks = [];
+    const featNoseMarks = [];
     const otherMarks = [];
     for (let i = 0; i < raw.marks.length; i++) {
       const m = raw.marks[i];
       if (!m || spaces.indexOf(m.space) === -1) {
         otherMarks.push(m);
+        continue;
+      }
+      if (partId === 'head' && m._layerId === '__feat:mouth') {
+        delete m._hidden;
+        featMouthMarks.push(m);
+        continue;
+      }
+      if (partId === 'head' && m._layerId === '__feat:nose') {
+        delete m._hidden;
+        featNoseMarks.push(m);
         continue;
       }
       const lid = (m._layerId && buckets[m._layerId]) ? m._layerId : layers[0].id;
@@ -1758,6 +1891,8 @@
       const arr = buckets[layers[i].id];
       for (let j = 0; j < arr.length; j++) orderedPartMarks.push(arr[j]);
     }
+    for (let i = 0; i < featMouthMarks.length; i++) orderedPartMarks.push(featMouthMarks[i]);
+    for (let i = 0; i < featNoseMarks.length; i++) orderedPartMarks.push(featNoseMarks[i]);
     raw.marks = otherMarks.concat(orderedPartMarks);
   }
 
@@ -1790,13 +1925,174 @@
     return layer;
   }
 
+  // Handle direct canvas click/paint when a feature layer (eyes/nose/mouth/earInner/paws/tailTip/base) is active.
+  // Returns true if handled as a palette/feature-layer action (skip freehand mark stroke),
+  // or false if it should proceed as a freehand mark stroke (e.g. hand-painting multi-color nose or mouth).
+  function handleFeatureLayerCanvasAction(raw, skin, partId, sPt, wPt, mapped) {
+    const curId = activeLayerByPart[partId];
+    if (!isFeatureLayerId(curId)) return false;
+    if (!raw.palette) raw.palette = {};
+    const api = API();
+    const c = brushColor.toUpperCase();
+
+    if (curId === '__feat:eyes' && partId === 'head') {
+      const side = mapped.x < 0 ? 'left' : 'right';
+      const ex = side === 'left' ? -17.2 : 17.2;
+      const ey = -2;
+      const dx = mapped.x - ex;
+      const dy = mapped.y - ey;
+      const inPupil = (dx * dx) / (3.8 * 3.8) + (dy * dy) / (6.8 * 6.8) <= 1.0;
+      const inIris = (dx * dx) / (11.2 * 11.2) + (dy * dy) / (10.2 * 10.2) <= 1.0;
+
+      if (inPupil) {
+        if (mirrorEnabled) {
+          raw.palette.pupil = c;
+          delete raw.palette.pupilLeft;
+          delete raw.palette.pupilRight;
+        } else {
+          if (!raw.palette.pupilLeft) raw.palette.pupilLeft = colorToHex(skin.palette.pupilLeft || skin.palette.pupil, '#141416');
+          if (!raw.palette.pupilRight) raw.palette.pupilRight = colorToHex(skin.palette.pupilRight || skin.palette.pupil, '#141416');
+          if (side === 'left') raw.palette.pupilLeft = c;
+          else raw.palette.pupilRight = c;
+        }
+        notifyChange(true);
+        renderPartInspector();
+        if (api) api.showToast((mirrorEnabled ? '双眼瞳孔' : (side === 'left' ? '左眼瞳孔' : '右眼瞳孔')) + '已设为 ' + c);
+        return true;
+      }
+      if (inIris) {
+        if (mirrorEnabled) {
+          raw.palette.iris = c;
+          raw.palette.irisLeft = c;
+          raw.palette.irisRight = c;
+        } else {
+          if (!raw.palette.irisLeft) raw.palette.irisLeft = colorToHex(skin.palette.irisLeft || skin.palette.iris, '#D2E83A');
+          if (!raw.palette.irisRight) raw.palette.irisRight = colorToHex(skin.palette.irisRight || skin.palette.iris, '#D2E83A');
+          if (side === 'left') raw.palette.irisLeft = c;
+          else raw.palette.irisRight = c;
+          raw.palette.iris = raw.palette.irisLeft;
+        }
+        notifyChange(true);
+        renderPartInspector();
+        if (api) api.showToast((mirrorEnabled ? '双眼虹膜' : (side === 'left' ? '左眼虹膜' : '右眼虹膜')) + '已设为 ' + c);
+        return true;
+      }
+      if (api) api.showToast('当前在「眼睛层」：请直接点左/右眼虹膜或瞳孔上色（关掉“对称”可画异瞳）');
+      return true;
+    }
+
+    if (curId === '__feat:nose' && partId === 'head') {
+      if (activeTool === 'bucket') {
+        raw.palette.nose = c;
+        lastVisibleNoseHex = c;
+        notifyChange(true);
+        renderPartInspector();
+        if (api) api.showToast('纯色鼻尖已设为 ' + c);
+        return true;
+      }
+      // Freehand paint brush on nose layer -> auto-hide solid nose so multi-color nose marks show on top!
+      if (!isNoseHidden(skin.palette)) {
+        setNoseHidden(raw, true);
+        if (api) api.showToast('已自动隐藏默认纯色鼻子，现在可自由手绘多色鼻子');
+      }
+      return false;
+    }
+
+    if (curId === '__feat:mouth' && partId === 'head') {
+      if (activeTool === 'bucket') {
+        raw.palette.mouth = c;
+        lastVisibleMouthHex = c;
+        notifyChange(true);
+        renderPartInspector();
+        if (api) api.showToast('嘴巴线条已设为 ' + c);
+        return true;
+      }
+      if (!isMouthHidden(skin.palette)) {
+        setMouthHidden(raw, true);
+        if (api) api.showToast('已隐藏默认嘴巴线条，现在可自由手绘嘴巴/腮红');
+      }
+      return false;
+    }
+
+    if (curId === '__feat:earInner' && partId === 'ears') {
+      raw.palette.earInner = c;
+      notifyChange(true);
+      renderPartInspector();
+      if (api) api.showToast('内耳颜色已设为 ' + c);
+      return true;
+    }
+
+    if (curId === '__feat:paws' && (partId === 'leftArm' || partId === 'rightArm' || partId === 'hindLeg')) {
+      const bot = toPartCanvas(partId, { x: 100, y: 0 });
+      const hitPad = (wPt.y >= bot.y - 14 && wPt.y <= bot.y + 30 && Math.abs(wPt.x - bot.x) <= 28);
+      if (hitPad) {
+        raw.palette.pawPads = c;
+        if (api) api.showToast('肉垫颜色已设为 ' + c);
+      } else if (partId === 'hindLeg') {
+        raw.palette.hindPaw = c;
+        if (api) api.showToast('后爪颜色已设为 ' + c);
+      } else {
+        raw.palette.paws = c;
+        if (api) api.showToast('小爪颜色已设为 ' + c);
+      }
+      notifyChange(true);
+      renderPartInspector();
+      return true;
+    }
+
+    if (curId === '__feat:tailTip' && partId === 'tail') {
+      raw.palette.tailTip = c;
+      notifyChange(true);
+      renderPartInspector();
+      if (api) api.showToast('尾尖颜色已设为 ' + c);
+      return true;
+    }
+
+    if (curId === '__feat:base') {
+      if (partId === 'head') {
+        raw.palette.headBody = c;
+        delete raw.palette.bodyShade;
+        if (raw.partGradients) delete raw.partGradients.head;
+      } else if (partId === 'body') {
+        raw.palette.body = c;
+        delete raw.palette.bodyShade;
+        if (raw.partGradients) delete raw.partGradients.body;
+      } else if (partId === 'ears') {
+        raw.palette.earOuter = c;
+        if (raw.partGradients) { delete raw.partGradients.leftEar; delete raw.partGradients.rightEar; }
+      } else if (partId === 'leftArm' || partId === 'rightArm') {
+        raw.palette.legs = c;
+        raw.idleLegs = 'legs';
+        if (raw.partGradients) {
+          delete raw.partGradients[partId];
+          if (mirrorEnabled) { delete raw.partGradients.leftArm; delete raw.partGradients.rightArm; }
+        }
+      } else if (partId === 'hindLeg') {
+        raw.palette.hindLeg = c;
+        if (raw.partGradients) delete raw.partGradients.hindLeg;
+      } else if (partId === 'tail') {
+        raw.palette.tail = c;
+        if (raw.partGradients) delete raw.partGradients.tail;
+      }
+      notifyChange(true);
+      renderPartInspector();
+      const part = PART_BY_ID[partId];
+      if (api && part) api.showToast('已将「' + part.label + '」底色设为 ' + c);
+      return true;
+    }
+
+    return false;
+  }
+
   function commitDraftStroke() {
     const raw = getRaw();
     const api = API();
     if (!raw || !draftPts.length) return;
     if (!raw.marks) raw.marks = [];
 
-    const activeLayer = getActiveLayer(raw, selectedPartId);
+    const curId = activeLayerByPart[selectedPartId];
+    const isFeatPaint = (selectedPartId === 'head') && (curId === '__feat:nose' || curId === '__feat:mouth');
+    const activeLayer = isFeatPaint ? null : getActivePaintLayer(raw, selectedPartId);
     if (activeLayer && activeLayer.visible === false) {
       activeLayer.visible = true;
       if (api) api.showToast('已自动显示当前图层「' + activeLayer.name + '」');
@@ -1804,7 +2100,7 @@
 
     const primary = buildMarkObject(activeDrawSpace, draftPts);
     if (!primary) return;
-    if (activeLayer) primary._layerId = activeLayer.id;
+    primary._layerId = isFeatPaint ? curId : (activeLayer ? activeLayer.id : 'L1');
 
     const toAdd = [primary];
     if (mirrorEnabled && PART_BY_ID[selectedPartId].canMirror) {
@@ -1812,7 +2108,7 @@
       if (mir) {
         const m2 = buildMarkObject(mir.space, mir.pts);
         if (m2) {
-          if (activeLayer) m2._layerId = activeLayer.id;
+          m2._layerId = primary._layerId;
           toAdd.push(m2);
         }
       }
@@ -1960,7 +2256,9 @@
     const mapped = fromPartCanvas(partId, wPt);
     const spaces = mapped.space === 'head' ? ['head', 'skull'] : [mapped.space];
     const layers = ensurePartLayers(raw, partId);
-    const activeLayer = getActiveLayer(raw, partId);
+    const curId = activeLayerByPart[partId];
+    const activePaint = isFeatureLayerId(curId) ? null : getActivePaintLayer(raw, partId);
+    const activeLayerId = (curId === '__feat:nose' || curId === '__feat:mouth') ? curId : (activePaint ? activePaint.id : null);
 
     // Search marks from topmost to bottommost (prefer active layer first, then any visible mark)
     if (Array.isArray(raw.marks)) {
@@ -1968,7 +2266,7 @@
         for (let i = raw.marks.length - 1; i >= 0; i--) {
           const m = raw.marks[i];
           if (!m || m._hidden || spaces.indexOf(m.space) === -1) continue;
-          if (onlyActive && activeLayer && m._layerId && m._layerId !== activeLayer.id) continue;
+          if (onlyActive && activeLayerId && m._layerId !== activeLayerId) continue;
           if (markContainsPoint(m, mapped)) {
             return { type: 'mark', index: i, mirrorIndex: findMirrorItemIndex(raw, 'mark', i, partId) };
           }
@@ -2217,14 +2515,18 @@
 
     let removed = false;
     const layers = ensurePartLayers(raw, selectedPartId);
-    const activeLayer = getActiveLayer(raw, selectedPartId);
-    const filterByActiveLayer = layers.length > 1 && activeLayer;
+    const curLayerId = activeLayerByPart[selectedPartId];
+    const activeLayer = isFeatureLayerId(curLayerId) ? null : getActivePaintLayer(raw, selectedPartId);
+    const targetLayerId = (curLayerId === '__feat:nose' || curLayerId === '__feat:mouth')
+      ? curLayerId
+      : (activeLayer ? activeLayer.id : null);
+    const filterByActiveLayer = !!targetLayerId && (layers.length > 1 || isFeatureLayerId(curLayerId));
     if (raw.marks && raw.marks.length) {
       const before = raw.marks.length;
       raw.marks = raw.marks.filter((m) => {
         if (spacesToHit.indexOf(m.space) === -1) return true;
         if (m._hidden) return true;
-        if (filterByActiveLayer && m._layerId && m._layerId !== activeLayer.id) return true;
+        if (filterByActiveLayer && m._layerId !== targetLayerId) return true;
         const pts = m.points;
         if (!pts || !pts.length) return true;
         const tol = hitR + (m.width || 2) * 0.5;
@@ -2869,6 +3171,7 @@
     if (partHeaderEl) partHeaderEl.classList.remove('is-part');
     if (partBackBtn) partBackBtn.hidden = true;
     if (quickToolsEl) quickToolsEl.hidden = true;
+    if (activeLayerPillEl) activeLayerPillEl.hidden = true;
     if (floatingCornerEl) floatingCornerEl.hidden = true;
     setCornerTab(null);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(false);
@@ -2917,6 +3220,7 @@
     if (partHeaderEl) partHeaderEl.classList.add('is-part');
     if (partBackBtn) partBackBtn.hidden = false;
     if (quickToolsEl) quickToolsEl.hidden = false;
+    if (activeLayerPillEl) activeLayerPillEl.hidden = false;
     if (floatingCornerEl) floatingCornerEl.hidden = false;
     setCornerTab(activeCornerTab);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(true);
@@ -2944,6 +3248,7 @@
     if (partHeaderEl) partHeaderEl.classList.remove('is-part');
     if (partBackBtn) partBackBtn.hidden = true;
     if (quickToolsEl) quickToolsEl.hidden = true;
+    if (activeLayerPillEl) activeLayerPillEl.hidden = true;
     if (floatingCornerEl) floatingCornerEl.hidden = true;
     setCornerTab(null);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(false);
@@ -3020,6 +3325,8 @@
     if (key === 'irisLeft') return colorToHex(pal.irisLeft || pal.iris, '#D2E83A');
     if (key === 'irisRight') return colorToHex(pal.irisRight || pal.iris, '#D2E83A');
     if (key === 'pupil') return colorToHex(pal.pupil || pal.pupilLeft, '#141416');
+    if (key === 'pupilLeft') return colorToHex(pal.pupilLeft || pal.pupil, '#141416');
+    if (key === 'pupilRight') return colorToHex(pal.pupilRight || pal.pupil, '#141416');
     if (key === 'nose') {
       if (pal.nose && !isNoseHidden(pal)) return colorToHex(pal.nose, lastVisibleNoseHex);
       return lastVisibleNoseHex;
@@ -3036,13 +3343,18 @@
     const pal = skin.palette;
     const shape = skin.shape;
 
-    const pInputs = inspectorEl.querySelectorAll('[data-ctx-pal]');
-    for (let i = 0; i < pInputs.length; i++) {
-      const inp = pInputs[i];
-      if (inp === document.activeElement) continue;
-      const hex = getPaletteHexForChip(pal, inp.dataset.ctxPal);
-      if (inp.value.toUpperCase() !== hex.toUpperCase()) inp.value = hex;
-    }
+    const syncPalInputs = (root) => {
+      if (!root) return;
+      const pInputs = root.querySelectorAll('[data-ctx-pal]');
+      for (let i = 0; i < pInputs.length; i++) {
+        const inp = pInputs[i];
+        if (inp === document.activeElement) continue;
+        const hex = getPaletteHexForChip(pal, inp.dataset.ctxPal);
+        if (inp.value.toUpperCase() !== hex.toUpperCase()) inp.value = hex;
+      }
+    };
+    syncPalInputs(inspectorEl);
+    syncPalInputs(layersPaneEl);
 
     const hideMouthCb = inspectorEl.querySelector('#ctx-hide-mouth');
     if (hideMouthCb) {
@@ -3112,13 +3424,19 @@
     const gradStop = hasGrad && typeof rawGrad.stop === 'number' ? rawGrad.stop : 0.52;
 
     const partLayers = ensurePartLayers(raw, partId);
-    const activeLayer = getActiveLayer(raw, partId);
+    const curLayerId = activeLayerByPart[partId];
+    const activePaint = isFeatureLayerId(curLayerId) ? null : getActivePaintLayer(raw, partId);
     const layerSig = partLayers.map((l) => l.id + ':' + (l.visible !== false ? '1' : '0') + ':' + countLayerMarks(raw, partId, l.id)).join(',');
     const noseHidFlag = partId === 'head' ? (isNoseHidden(pal) ? '1' : '0') : '0';
     const mouthHidFlag = partId === 'head' ? (isMouthHidden(pal) ? '1' : '0') : '0';
+    const noseCnt = partId === 'head' ? countLayerMarks(raw, 'head', '__feat:nose') : 0;
+    const mouthCnt = partId === 'head' ? countLayerMarks(raw, 'head', '__feat:mouth') : 0;
+    const featVisSig = (pal.earInner ? '1' : '0') + (pal.pawPads ? '1' : '0') + (pal.tailTip ? '1' : '0');
+
+    updateActiveLayerPillUI(raw, partId);
 
     // Preserve live DOM inputs while dragging sliders / picking colors on the same part!
-    const nextKey = partId + '|' + (hasGrad ? '1' : '0') + '|' + (activeLayer ? activeLayer.id : '') + '|' + layerSig + '|' + noseHidFlag + mouthHidFlag;
+    const nextKey = partId + '|' + (hasGrad ? '1' : '0') + '|' + curLayerId + '|' + layerSig + '|' + noseHidFlag + mouthHidFlag + '|' + noseCnt + ',' + mouthCnt + '|' + featVisSig;
     if (mountedInspectorKey === nextKey && inspectorEl.childElementCount > 0) {
       syncInspectorValues(skin, gradFrom, gradTo, gradStop);
       return;
@@ -3201,26 +3519,115 @@
         sliderRow('尾根高低', 'tailRootY', -14, 14, 1, shape.tailRootY || 0, 'px');
     }
 
-    // Build PS-style layer stack HTML (topmost layer rendered first, matching Photoshop)
+    // Build PS-style full clickable & editable layer stack (topmost layer rendered first)
+    const miniChip = (label, palKey, hex) =>
+      '<label class="ctx-mini-chip"><span>' + label + '</span><input type="color" data-ctx-pal="' + palKey + '" value="' + hex + '" /></label>';
+
+    const buildInlineFeatureEditor = (featId) => {
+      if (curLayerId !== featId) return '';
+      if (featId === '__feat:eyes') {
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('左眼', 'irisLeft', getPaletteHexForChip(pal, 'irisLeft')) +
+            miniChip('右眼', 'irisRight', getPaletteHexForChip(pal, 'irisRight')) +
+            miniChip('左瞳', 'pupilLeft', getPaletteHexForChip(pal, 'pupilLeft')) +
+            miniChip('右瞳', 'pupilRight', getPaletteHexForChip(pal, 'pupilRight')) +
+          '</div>' +
+          '<div class="ctx-inline-tip">直接点击画布上的左/右眼虹膜或瞳孔也可直接上色（关掉右上「对称」可画异瞳）</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:nose') {
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('鼻尖纯色', 'nose', getPaletteHexForChip(pal, 'nose')) +
+            '<button type="button" class="ctx-mini-btn" id="ctx-zoom-nose" title="放大并居中对准鼻子位置，方便精细涂画">放大看鼻子</button>' +
+            (noseCnt > 0 ? '<button type="button" class="ctx-mini-btn danger" id="ctx-clear-nose-marks">清空手绘鼻</button>' : '') +
+          '</div>' +
+          '<div class="ctx-inline-tip">用油漆桶点画布可改纯色鼻；用画笔直接在鼻形框内涂画会自动切为多色手绘鼻子</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:mouth') {
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('嘴巴', 'mouth', getPaletteHexForChip(pal, 'mouth')) +
+            miniChip('胡须', 'whiskers', colorToHex(pal.whiskers, '#DCDCDC')) +
+            (mouthCnt > 0 ? '<button type="button" class="ctx-mini-btn danger" id="ctx-clear-mouth-marks">清空手绘嘴</button>' : '') +
+          '</div>' +
+          '<div class="ctx-inline-tip">隐藏默认嘴巴后可直接用画笔手绘特色嘴型；用油漆桶点画布可改嘴巴线色</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:earInner') {
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('内耳颜色', 'earInner', colorToHex(pal.earInner, '#F3B4BE')) +
+          '</div>' +
+          '<div class="ctx-inline-tip">直接点击画布上左/右内耳区域或在此调色，立即更新内耳颜色</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:paws') {
+        const pawKey = partId === 'hindLeg' ? 'hindPaw' : 'paws';
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip(partId === 'hindLeg' ? '后爪颜色' : '小爪颜色', pawKey, getPaletteHexForChip(pal, pawKey)) +
+            miniChip('肉垫颜色', 'pawPads', colorToHex(pal.pawPads, '#F3A6B2')) +
+          '</div>' +
+          '<div class="ctx-inline-tip">直接点击画布底部的爪子或肉垫区域即可分别上色</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:tailTip') {
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('尾尖颜色', 'tailTip', getPaletteHexForChip(pal, 'tailTip')) +
+          '</div>' +
+          '<div class="ctx-inline-tip">直接点击尾巴右侧尾尖高亮区或在此改色，点击小眼睛可关闭尾尖分段</div>' +
+        '</div>';
+      }
+      if (featId === '__feat:base') {
+        const baseKey = partId === 'head' ? 'headBody' :
+          (partId === 'ears' ? 'earOuter' :
+          ((partId === 'leftArm' || partId === 'rightArm') ? 'legs' :
+          (partId === 'hindLeg' ? 'hindLeg' : (partId === 'tail' ? 'tail' : 'body'))));
+        return '<div class="ctx-layer-inline">' +
+          '<div class="ctx-inline-row">' +
+            miniChip('底色', baseKey, getPaletteHexForChip(pal, baseKey)) +
+            '<button type="button" class="ctx-mini-btn" id="ctx-inline-grad-btn">' + (hasGrad ? '关闭渐变' : '开启组件渐变') + '</button>' +
+          '</div>' +
+          '<div class="ctx-inline-tip">点击画布直接填充该部位底色，也可前往右上「身材」调渐变过渡</div>' +
+        '</div>';
+      }
+      return '';
+    };
+
+    const buildFeatureRow = (featId, title, badge, eyeFeatKey, isHiddenFeat) => {
+      const isAct = curLayerId === featId;
+      const eyeHtml = eyeFeatKey
+        ? '<button type="button" class="ctx-layer-eye" data-layer-feature="' + eyeFeatKey + '" title="' + (isHiddenFeat ? '显示' : '隐藏') + '">' + (isHiddenFeat ? '🙈' : '👁') + '</button>'
+        : '<span class="ctx-layer-dot"></span>';
+      return '<div class="ctx-layer-row fixed-feature' + (isAct ? ' active' : '') + (isHiddenFeat ? ' is-hidden' : '') + '" data-layer-select="' + featId + '">' +
+        eyeHtml +
+        '<span class="ctx-layer-name">' + title + '</span>' +
+        '<span class="ctx-layer-badge">' + (isAct ? '编辑中 · ' : '') + badge + '</span>' +
+      '</div>' + buildInlineFeatureEditor(featId);
+    };
+
     let layersListHtml = '';
     if (partId === 'head') {
       const nHid = isNoseHidden(pal);
       const mHid = isMouthHidden(pal);
-      layersListHtml +=
-        '<div class="ctx-layer-row fixed-feature' + (nHid ? ' is-hidden' : '') + '">' +
-          '<button type="button" class="ctx-layer-eye" data-layer-feature="nose" title="' + (nHid ? '显示默认鼻子' : '隐藏默认鼻子以手绘多色鼻') + '">' + (nHid ? '🙈' : '👁') + '</button>' +
-          '<span class="ctx-layer-name">默认鼻子（置顶）</span>' +
-          '<span class="ctx-layer-badge">' + (nHid ? '已隐藏 · 可手绘' : '纯色置顶') + '</span>' +
-        '</div>' +
-        '<div class="ctx-layer-row fixed-feature' + (mHid ? ' is-hidden' : '') + '">' +
-          '<button type="button" class="ctx-layer-eye" data-layer-feature="mouth" title="' + (mHid ? '显示默认嘴巴' : '隐藏默认嘴巴') + '">' + (mHid ? '🙈' : '👁') + '</button>' +
-          '<span class="ctx-layer-name">默认嘴巴（置顶）</span>' +
-          '<span class="ctx-layer-badge">' + (mHid ? '已隐藏' : '置顶') + '</span>' +
-        '</div>';
+      layersListHtml += buildFeatureRow('__feat:eyes', '眼睛层', '虹膜/瞳孔', null, false);
+      layersListHtml += buildFeatureRow('__feat:nose', '鼻子层', nHid ? ('手绘 ' + noseCnt + ' 笔') : '纯色', 'nose', nHid);
+      layersListHtml += buildFeatureRow('__feat:mouth', '嘴巴与胡须层', mHid ? ('手绘 ' + mouthCnt + ' 笔') : '默认', 'mouth', mHid);
+    } else if (partId === 'ears') {
+      layersListHtml += buildFeatureRow('__feat:earInner', '内耳层', pal.earInner ? '已开启' : '已隐藏', 'earInner', !pal.earInner);
+    } else if (partId === 'leftArm' || partId === 'rightArm' || partId === 'hindLeg') {
+      layersListHtml += buildFeatureRow('__feat:paws', partId === 'hindLeg' ? '后爪与肉垫层' : '爪子与肉垫层', '可点选上色', null, false);
+    } else if (partId === 'tail') {
+      layersListHtml += buildFeatureRow('__feat:tailTip', '尾尖层', pal.tailTip ? '已开启' : '已隐藏', 'tailTip', !pal.tailTip);
     }
+
     for (let li = partLayers.length - 1; li >= 0; li--) {
       const l = partLayers[li];
-      const isAct = activeLayer && l.id === activeLayer.id;
+      const isAct = activePaint && l.id === activePaint.id;
       const isVis = l.visible !== false;
       const cnt = countLayerMarks(raw, partId, l.id);
       layersListHtml +=
@@ -3235,20 +3642,15 @@
           '</div>' +
         '</div>';
     }
-    layersListHtml +=
-      '<div class="ctx-layer-row base-layer">' +
-        '<span class="ctx-layer-dot"></span>' +
-        '<span class="ctx-layer-name">底色 / 渐变层</span>' +
-        '<span class="ctx-layer-meta">底层</span>' +
-      '</div>';
+    layersListHtml += buildFeatureRow('__feat:base', '底色 / 渐变层', hasGrad ? '渐变' : '纯色', null, false);
 
     const layersPanelHtml =
       '<div class="ctx-layers-panel">' +
         '<div class="ctx-layers-head">' +
-          '<span class="ctx-layers-title">图层叠放（上盖下）</span>' +
+          '<span class="ctx-layers-title">点任意层即可直接编辑</span>' +
           '<div class="ctx-layers-actions">' +
             (partId === 'head'
-              ? '<button type="button" class="mini-btn" id="ctx-layer-nose-paint" title="隐藏默认纯色鼻子并新建顶层画多色/花鼻子">+ 鼻子上色层</button>'
+              ? '<button type="button" class="mini-btn" id="ctx-layer-nose-paint" title="切换到鼻子层并在鼻形框内手绘多色鼻子">画鼻子</button>'
               : '') +
             '<button type="button" class="mini-btn" id="ctx-layer-add">+ 新建图层</button>' +
           '</div>' +
@@ -3282,56 +3684,67 @@
       inspectorEl.innerHTML += layersPanelHtml;
     }
 
-    // Bind palette inputs
-    const pInputs = inspectorEl.querySelectorAll('[data-ctx-pal]');
-    for (let i = 0; i < pInputs.length; i++) {
-      pInputs[i].addEventListener('input', function () {
-        const key = this.dataset.ctxPal;
-        const val = this.value.toUpperCase();
-        const r = getRaw();
-        if (!r) return;
-        if (!r.palette) r.palette = {};
-        if (key === 'irisLeft') {
-          if (!r.palette.irisRight && r.palette.iris) r.palette.irisRight = r.palette.iris;
-          r.palette.irisLeft = val;
-          r.palette.iris = r.palette.irisLeft || r.palette.irisRight;
-        } else if (key === 'irisRight') {
-          if (!r.palette.irisLeft && r.palette.iris) r.palette.irisLeft = r.palette.iris;
-          r.palette.irisRight = val;
-          r.palette.iris = r.palette.irisLeft || r.palette.irisRight;
-        } else if (key === 'pupil') {
-          r.palette.pupil = val;
-          delete r.palette.pupilLeft;
-          delete r.palette.pupilRight;
-        } else if (key === 'body' || key === 'headBody') {
-          r.palette[key] = val;
-          delete r.palette.bodyShade;
-        } else if (key === 'nose') {
-          r.palette.nose = val;
-          lastVisibleNoseHex = val;
-          const hideNoseCb = inspectorEl.querySelector('#ctx-hide-nose');
-          if (hideNoseCb && hideNoseCb.checked) hideNoseCb.checked = false;
-        } else if (key === 'mouth') {
-          r.palette.mouth = val;
-          lastVisibleMouthHex = val;
-          const hideMouthCb = inspectorEl.querySelector('#ctx-hide-mouth');
-          if (hideMouthCb && hideMouthCb.checked) hideMouthCb.checked = false;
-        } else if (key === 'belly') {
-          const api = API();
-          if (api && typeof api.applyPaletteChange === 'function') {
-            api.applyPaletteChange('belly', val);
-            requestRedraw();
-            return;
-          }
-          r.palette.belly = val;
-        } else {
-          r.palette[key] = val;
+    // Bind palette inputs across both Body & Layers tabs via one shared handler
+    const applyPaletteEdit = (key, val) => {
+      const r = getRaw();
+      if (!r) return;
+      if (!r.palette) r.palette = {};
+      if (key === 'irisLeft') {
+        if (!r.palette.irisRight && r.palette.iris) r.palette.irisRight = r.palette.iris;
+        r.palette.irisLeft = val;
+        r.palette.iris = r.palette.irisLeft || r.palette.irisRight;
+      } else if (key === 'irisRight') {
+        if (!r.palette.irisLeft && r.palette.iris) r.palette.irisLeft = r.palette.iris;
+        r.palette.irisRight = val;
+        r.palette.iris = r.palette.irisLeft || r.palette.irisRight;
+      } else if (key === 'pupil') {
+        r.palette.pupil = val;
+        delete r.palette.pupilLeft;
+        delete r.palette.pupilRight;
+      } else if (key === 'pupilLeft' || key === 'pupilRight') {
+        if (!r.palette.pupilLeft) r.palette.pupilLeft = getPaletteHexForChip(skin.palette, 'pupilLeft');
+        if (!r.palette.pupilRight) r.palette.pupilRight = getPaletteHexForChip(skin.palette, 'pupilRight');
+        r.palette[key] = val;
+      } else if (key === 'body' || key === 'headBody') {
+        r.palette[key] = val;
+        delete r.palette.bodyShade;
+      } else if (key === 'nose') {
+        r.palette.nose = val;
+        lastVisibleNoseHex = val;
+        const hideNoseCb = inspectorEl.querySelector('#ctx-hide-nose');
+        if (hideNoseCb && hideNoseCb.checked) hideNoseCb.checked = false;
+      } else if (key === 'mouth') {
+        r.palette.mouth = val;
+        lastVisibleMouthHex = val;
+        const hideMouthCb = inspectorEl.querySelector('#ctx-hide-mouth');
+        if (hideMouthCb && hideMouthCb.checked) hideMouthCb.checked = false;
+      } else if (key === 'belly') {
+        const api = API();
+        if (api && typeof api.applyPaletteChange === 'function') {
+          api.applyPaletteChange('belly', val);
+          requestRedraw();
+          return;
         }
-        if (key === 'legs') r.idleLegs = 'legs';
-        notifyChange(false);
-      });
-      pInputs[i].addEventListener('change', function () { notifyChange(true); });
-    }
+        r.palette.belly = val;
+      } else {
+        r.palette[key] = val;
+      }
+      if (key === 'legs') r.idleLegs = 'legs';
+      notifyChange(false);
+    };
+
+    const bindPalRoot = (root) => {
+      if (!root) return;
+      const pInputs = root.querySelectorAll('[data-ctx-pal]');
+      for (let i = 0; i < pInputs.length; i++) {
+        pInputs[i].addEventListener('input', function () {
+          applyPaletteEdit(this.dataset.ctxPal, this.value.toUpperCase());
+        });
+        pInputs[i].addEventListener('change', function () { notifyChange(true); });
+      }
+    };
+    bindPalRoot(inspectorEl);
+    if (layersPaneEl && layersPaneEl !== inspectorEl) bindPalRoot(layersPaneEl);
 
     const hideNoseCheck = inspectorEl.querySelector('#ctx-hide-nose');
     if (hideNoseCheck) {
@@ -3373,20 +3786,67 @@
       nosePaintBtn.addEventListener('click', function () {
         const r = getRaw();
         if (!r) return;
+        activeLayerByPart.head = '__feat:nose';
         setNoseHidden(r, true);
-        const layers = ensurePartLayers(r, 'head');
-        let noseLayer = layers.find((l) => l.name === '鼻子上色层');
-        if (!noseLayer) {
-          noseLayer = createPartLayer(r, 'head', '鼻子上色层');
-        } else {
-          noseLayer.visible = true;
-          activeLayerByPart.head = noseLayer.id;
-        }
         syncPartMarksByLayers(r, 'head');
         notifyChange(true);
         renderPartInspector();
+        requestRedraw();
         const api = API();
-        if (api) api.showToast('已隐藏默认鼻子并切到「鼻子上色层」，现在可在鼻形虚线框内自由画多色鼻子');
+        if (api) api.showToast('已切换到「鼻子层」，现在可在鼻形框内自由画多色鼻子');
+      });
+    }
+
+    const zoomNoseBtn = layersHostEl.querySelector('#ctx-zoom-nose');
+    if (zoomNoseBtn) {
+      zoomNoseBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const noseWorld = toPartCanvas('head', { x: 0, y: 8.2 });
+        viewZoom = 2.6;
+        const totalScale = fitScale * viewZoom;
+        viewPanX = -(noseWorld.x - CW * 0.5) * totalScale;
+        viewPanY = -(noseWorld.y - CH * 0.5) * totalScale;
+        clampViewPan();
+        updateZoomControlsUI();
+        requestRedraw();
+        const api = API();
+        if (api) api.showToast('已放大并居中对准鼻子，画完可点右下角 100% 复位');
+      });
+    }
+
+    const clearNoseMarksBtn = layersHostEl.querySelector('#ctx-clear-nose-marks');
+    if (clearNoseMarksBtn) {
+      clearNoseMarksBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const r = getRaw();
+        if (!r || !Array.isArray(r.marks)) return;
+        r.marks = r.marks.filter((m) => !(m && (m.space === 'head' || m.space === 'skull') && m._layerId === '__feat:nose'));
+        notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
+    const clearMouthMarksBtn = layersHostEl.querySelector('#ctx-clear-mouth-marks');
+    if (clearMouthMarksBtn) {
+      clearMouthMarksBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const r = getRaw();
+        if (!r || !Array.isArray(r.marks)) return;
+        r.marks = r.marks.filter((m) => !(m && (m.space === 'head' || m.space === 'skull') && m._layerId === '__feat:mouth'));
+        notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
+    const inlineGradBtn = layersHostEl.querySelector('#ctx-inline-grad-btn');
+    if (inlineGradBtn) {
+      inlineGradBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const gradCb = inspectorEl.querySelector('#ctx-grad-enabled');
+        if (gradCb) {
+          gradCb.checked = !gradCb.checked;
+          gradCb.dispatchEvent(new Event('change'));
+        }
       });
     }
 
@@ -3398,8 +3858,16 @@
         const r = getRaw();
         const sk = getSkin();
         if (!r || !sk) return;
+        if (!r.palette) r.palette = {};
         if (feat === 'nose') setNoseHidden(r, !isNoseHidden(sk.palette));
         else if (feat === 'mouth') setMouthHidden(r, !isMouthHidden(sk.palette));
+        else if (feat === 'earInner') {
+          if (sk.palette.earInner) delete r.palette.earInner;
+          else r.palette.earInner = '#F3B4BE';
+        } else if (feat === 'tailTip') {
+          if (sk.palette.tailTip) delete r.palette.tailTip;
+          else r.palette.tailTip = '#FFFFFF';
+        }
         notifyChange(true);
         renderPartInspector();
       });
@@ -3410,6 +3878,7 @@
       layerRows[i].addEventListener('click', function () {
         activeLayerByPart[partId] = this.dataset.layerSelect;
         renderPartInspector();
+        requestRedraw();
       });
     }
 
@@ -3704,7 +4173,13 @@
       }
 
       if (activeTool === 'bucket') {
-        applyBucketToPart(selectedPartId, brushColor, screenToWorldPt(sPt));
+        const raw = getRaw();
+        const wPtB = screenToWorldPt(sPt);
+        const mappedB = fromPartCanvas(selectedPartId, wPtB);
+        if (raw && handleFeatureLayerCanvasAction(raw, skin, selectedPartId, sPt, wPtB, mappedB)) {
+          return;
+        }
+        applyBucketToPart(selectedPartId, brushColor, wPtB);
         return;
       }
 
@@ -3717,6 +4192,11 @@
         erasedDuringDrag = false;
         eraseAtPoint(activeDrawSpace, mapped);
         requestRedraw();
+        return;
+      }
+
+      const rawNow = getRaw();
+      if (rawNow && handleFeatureLayerCanvasAction(rawNow, skin, selectedPartId, sPt, wPt, mapped)) {
         return;
       }
 
@@ -3859,7 +4339,9 @@
           if (x1 - x0 > 3 || y1 - y0 > 3) {
             const partSpaces = getPartSpaces(selectedPartId);
             const layers = ensurePartLayers(raw, selectedPartId);
-            const activeLayer = getActiveLayer(raw, selectedPartId);
+            const curId = activeLayerByPart[selectedPartId];
+            const activePaint = isFeatureLayerId(curId) ? null : getActivePaintLayer(raw, selectedPartId);
+            const activeLayerId = (curId === '__feat:nose' || curId === '__feat:mouth') ? curId : (activePaint ? activePaint.id : null);
             const hitsAll = [];
             const hitsActive = [];
             const seenIdx = new Set();
@@ -3880,7 +4362,7 @@
                   seenIdx.add(i);
                   const entry = { type: 'mark', index: i, mirrorIndex: mirIdx };
                   hitsAll.push(entry);
-                  if (activeLayer && (!m._layerId || m._layerId === activeLayer.id)) hitsActive.push(entry);
+                  if (activeLayerId && m._layerId === activeLayerId) hitsActive.push(entry);
                 }
               }
             }
@@ -4108,7 +4590,15 @@
     drawerTitleEl = document.getElementById('ps-drawer-title');
     brushDotEl = document.getElementById('ps-brush-dot');
     layerCountEl = document.getElementById('ps-layer-count');
+    activeLayerPillEl = document.getElementById('ps-active-layer-pill');
+    activeLayerNameEl = document.getElementById('ps-active-layer-name');
     selectionBarEl = document.getElementById('ps-selection-bar');
+
+    if (activeLayerPillEl) {
+      activeLayerPillEl.addEventListener('click', () => {
+        setCornerTab(activeCornerTab === 'layers' ? null : 'layers');
+      });
+    }
     selInfoEl = document.getElementById('ps-sel-info');
     skeletonToggleBtn = document.getElementById('btn-toggle-skeleton');
 
