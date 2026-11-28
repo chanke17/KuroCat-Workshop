@@ -1,0 +1,16 @@
+{
+ "formatVersion": 1,
+ "name": "中国围棋",
+ "author": "基于 chanke17/KuroCat 二改重绘",
+ "colors": {
+  "base": "#BD9660",
+  "deck": "#A68050",
+  "key": "#E2D3AE",
+  "keyBorder": "#8A6E48C0",
+  "accent": "#453D29",
+  "mouseBody": "#1B1C20",
+  "mouseBorder": "#0C0C0E",
+  "wheel": "#C7A040",
+  "darkText": true
+ }
+}
