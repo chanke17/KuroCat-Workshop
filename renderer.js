@@ -5322,30 +5322,31 @@
         };
         for (const r of skin.regions) if (r.space === limb.armSpace) drawRegion(ctx, r, armMap);
         for (const mk of skin.marks) if (mk.space === limb.armSpace) drawMark(ctx, mk, 'round', armMap);
-        if (dragLimbTex) {
-          const samples = [];
-          const dxD = limb.tip.x - limb.root.x, dyD = limb.tip.y - limb.root.y;
-          const lenD = Math.max(1, Math.hypot(dxD, dyD));
-          const uxD = dxD / lenD, uyD = dyD / lenD;
-          const spanScale = lenD / 100.0;
-          const steps = 16;
-          for (let i = 0; i <= steps; i++) {
-            const xCoord = PART_UV.limb.x0 + (i / steps) * (PART_UV.limb.x1 - PART_UV.limb.x0);
-            const tRaw = xCoord / 100.0;
-            const tC = clamp(tRaw, 0, 1);
-            const omt = 1 - tC;
-            const lx = omt * omt * gGeo.p0L.x + 2 * omt * tC * gGeo.midL.x + tC * tC * gGeo.p1L.x;
-            const ly = omt * omt * gGeo.p0L.y + 2 * omt * tC * gGeo.midL.y + tC * tC * gGeo.p1L.y;
-            const rx = omt * omt * gGeo.p0R.x + 2 * omt * tC * gGeo.midR.x + tC * tC * gGeo.p1R.x;
-            const ry = omt * omt * gGeo.p0R.y + 2 * omt * tC * gGeo.midR.y + tC * tC * gGeo.p1R.y;
-            let cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
-            if (tRaw < 0) { cx += uxD * (tRaw * 100.0) * spanScale; cy += uyD * (tRaw * 100.0) * spanScale; }
-            else if (tRaw > 1) { cx += uxD * ((tRaw - 1) * 100.0) * spanScale; cy += uyD * ((tRaw - 1) * 100.0) * spanScale; }
-            const hx = (rx - lx) * 0.5 * 1.4 * sign, hy = (ry - ly) * 0.5 * 1.4 * sign;
-            samples.push({ left: { x: cx + hx, y: cy + hy }, right: { x: cx - hx, y: cy - hy }, xCoord });
-          }
-          blitStripMesh(ctx, dragLimbTex, samples, PART_UV.limb);
+      }
+      if (dragLimbTex && limb.armSpace) {
+        const sign = limb.armSpace === 'leftArm' ? -1 : ((limb.armSpace === 'hindLeg' && limb.bendX < 0) ? -1 : 1);
+        const samples = [];
+        const dxD = limb.tip.x - limb.root.x, dyD = limb.tip.y - limb.root.y;
+        const lenD = Math.max(1, Math.hypot(dxD, dyD));
+        const uxD = dxD / lenD, uyD = dyD / lenD;
+        const spanScale = lenD / 100.0;
+        const steps = 16;
+        for (let i = 0; i <= steps; i++) {
+          const xCoord = PART_UV.limb.x0 + (i / steps) * (PART_UV.limb.x1 - PART_UV.limb.x0);
+          const tRaw = xCoord / 100.0;
+          const tC = clamp(tRaw, 0, 1);
+          const omt = 1 - tC;
+          const lx = omt * omt * gGeo.p0L.x + 2 * omt * tC * gGeo.midL.x + tC * tC * gGeo.p1L.x;
+          const ly = omt * omt * gGeo.p0L.y + 2 * omt * tC * gGeo.midL.y + tC * tC * gGeo.p1L.y;
+          const rx = omt * omt * gGeo.p0R.x + 2 * omt * tC * gGeo.midR.x + tC * tC * gGeo.p1R.x;
+          const ry = omt * omt * gGeo.p0R.y + 2 * omt * tC * gGeo.midR.y + tC * tC * gGeo.p1R.y;
+          let cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
+          if (tRaw < 0) { cx += uxD * (tRaw * 100.0) * spanScale; cy += uyD * (tRaw * 100.0) * spanScale; }
+          else if (tRaw > 1) { cx += uxD * ((tRaw - 1) * 100.0) * spanScale; cy += uyD * ((tRaw - 1) * 100.0) * spanScale; }
+          const hx = (rx - lx) * 0.5 * 1.4 * sign, hy = (ry - ly) * 0.5 * 1.4 * sign;
+          samples.push({ left: { x: cx + hx, y: cy + hy }, right: { x: cx - hx, y: cy - hy }, xCoord });
         }
+        blitStripMesh(ctx, dragLimbTex, samples, PART_UV.limb);
       }
       // Seated-consistent paw cuff overlay AFTER arm marks (matches desktop drawDragLimb & drawIdleFrontLeg)
       if (!dragLimbTex && !isDazed && !skin.colorpoint && !limb.isBehindBody &&
@@ -5731,7 +5732,12 @@
           });
         }
         ctx.save();
-        if (!dragHeadTex) {
+        if (dragHeadTex) {
+          ctx.translate(0, -1.5);
+          drawPolyline(ctx, dragBodyJawSide, true, headMap);
+          ctx.clip();
+          ctx.translate(0, 1.5);
+        } else {
           drawPolyline(ctx, dragBodyJawSide, true, headMap);
           ctx.clip();
         }
