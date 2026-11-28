@@ -5768,7 +5768,6 @@
       const c = Math.cos(angle), s = Math.sin(angle);
       return { x: pivot.x + dx * c - dy * s, y: pivot.y + dx * s + dy * c };
     };
-    const lerpPt = (a, b, t) => ({ x: lerpNum(a.x, b.x, t), y: lerpNum(a.y, b.y, t) });
     const worldKeyboardGrip = rotPt(frontRightLimb.tip, scruffPinch, bodyPendulum);
     const worldPointerGrip = rotPt(frontLeftLimb.tip, scruffPinch, bodyPendulum);
     const keyboardHandAngle = Math.atan2(frontRightLimb.tip.y - frontRightLimb.root.y, frontRightLimb.tip.x - frontRightLimb.root.x) - Math.PI / 2;
