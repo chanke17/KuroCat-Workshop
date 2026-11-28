@@ -445,7 +445,7 @@
       shape[k] = clamp(v, lo, hi);
     }
 
-    const regions = (raw.regions || []).map((r) => {
+    const regions = (raw.regions || []).filter((r) => r && !r._hidden).map((r) => {
       const fill = parseHexColor(r.fill) || { r: 1, g: 1, b: 1, a: 1 };
       const alpha = typeof r.alpha === 'number' ? clamp(r.alpha, 0, 1) : 1;
       const anchors = r.anchors.map((a) => ({
@@ -464,7 +464,7 @@
       };
     });
 
-    const marks = (raw.marks || []).map((m) => {
+    const marks = (raw.marks || []).filter((m) => m && !m._hidden).map((m) => {
       const baseCol = m.color ? parseHexColor(m.color) : pal.stripes;
       const col = baseCol ? Object.assign({}, baseCol) : { r: 0.2, g: 0.2, b: 0.2, a: 1 };
       const alpha = typeof m.alpha === 'number' ? clamp(m.alpha, 0, 1) : 1;
@@ -537,7 +537,14 @@
     clean.palette = {};
     for (const k of PALETTE_KEYS) {
       const v = raw.palette && raw.palette[k];
-      if (isValidHex(v)) clean.palette[k] = v.toUpperCase();
+      if (!isValidHex(v)) continue;
+      // Omit fully transparent nose so all desktop versions cleanly hide the default nose
+      // and reveal any hand-painted multi-color nose marks underneath.
+      if (k === 'nose') {
+        const parsed = parseHexColor(v);
+        if (parsed && parsed.a < 0.01) continue;
+      }
+      clean.palette[k] = v.toUpperCase();
     }
     if (!clean.palette.body) clean.palette.body = '#161618';
 
@@ -556,8 +563,8 @@
     if (raw.idleLegs === 'chest') clean.idleLegs = 'chest';
 
     if (raw.regions && raw.regions.length > 0) {
-      // Unknown spaces are dropped, never re-labelled (an arm stripe must not land on the face).
-      clean.regions = raw.regions.filter((r) => r && VALID_SPACES.includes(r.space)).slice(0, 64).map((r) => {
+      // Unknown spaces and hidden workshop layers are dropped, never re-labelled.
+      clean.regions = raw.regions.filter((r) => r && !r._hidden && VALID_SPACES.includes(r.space)).slice(0, 64).map((r) => {
         const out = {
           space: r.space,
           fill: isValidHex(r.fill) ? r.fill.toUpperCase() : '#FAF6EE',
@@ -580,7 +587,7 @@
     }
 
     if (raw.marks && raw.marks.length > 0) {
-      clean.marks = raw.marks.filter((m) => m && VALID_SPACES.includes(m.space)).slice(0, MAX_MARKS).map((m) => {
+      clean.marks = raw.marks.filter((m) => m && !m._hidden && VALID_SPACES.includes(m.space)).slice(0, MAX_MARKS).map((m) => {
         const out = {
           space: m.space,
           kind: m.kind === 'stroke' ? 'stroke' : 'polygon',

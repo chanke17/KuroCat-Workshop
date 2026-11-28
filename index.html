@@ -104,7 +104,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261127e" />
+  <link rel="stylesheet" href="styles.css?v=20261128b" />
 </head>
 <body>
   <div class="studio-shell">
@@ -344,6 +344,87 @@
 
             <div class="exploded-canvas-wrap" id="exploded-canvas-wrap">
               <canvas id="exploded-canvas" width="600" height="460" aria-label="小猫拆件与组件画笔编辑区"></canvas>
+
+              <!-- Top-left quick mode pill: Select / Brush / Eraser (PS-style instant switch) -->
+              <div class="ps-quick-tools" id="ps-quick-tools" hidden role="toolbar" aria-label="常用工具快捷切换">
+                <button type="button" class="ps-quick-btn" data-quick-tool="select" title="选择框（V）：点击或框选已画图案，拖动改位置、拖四角缩放">↖ 选择</button>
+                <button type="button" class="ps-quick-btn active" data-quick-tool="draw" title="画笔（B）：切回当前画笔继续绘制">🖌 画笔</button>
+                <button type="button" class="ps-quick-btn" data-quick-tool="eraser" title="橡皮（E）：擦除当前图层笔触">橡皮</button>
+              </div>
+
+              <!-- Top-right PS-style collapsible floating corner panels (Brush / Body & Colors / Layers) -->
+              <div class="ps-floating-corner" id="ps-floating-corner" hidden>
+                <div class="ps-corner-tabs" role="tablist" aria-label="画板属性面板">
+                  <button type="button" class="ps-corner-tab" data-ps-tab="brush" aria-expanded="false" title="展开/收起笔刷设置（工具、颜色、粗细、透明度）">
+                    <span class="ps-color-dot" id="ps-brush-dot" style="background:#1A1A1E"></span>
+                    <span>笔刷</span>
+                  </button>
+                  <button type="button" class="ps-corner-tab" data-ps-tab="body" aria-expanded="false" title="展开/收起身材与部位配色设置">
+                    <span>身材</span>
+                  </button>
+                  <button type="button" class="ps-corner-tab" data-ps-tab="layers" aria-expanded="false" title="展开/收起图层叠放面板">
+                    <span>图层</span>
+                    <span class="ps-tab-count" id="ps-layer-count">1</span>
+                  </button>
+                </div>
+
+                <div class="ps-corner-drawer" id="ps-corner-drawer" hidden>
+                  <div class="ps-drawer-bar">
+                    <span class="ps-drawer-title" id="ps-drawer-title">笔刷设置</span>
+                    <button type="button" class="ps-drawer-close" id="btn-ps-drawer-close" title="收起面板" aria-label="收起面板">×</button>
+                  </div>
+
+                  <!-- Tab 1: Brush Tools + Color + Size + Opacity -->
+                  <div class="ps-drawer-pane exploded-brush-dock" id="exploded-brush-dock" data-ps-pane="brush" hidden>
+                    <div class="brush-tools-row" role="toolbar" aria-label="画笔工具">
+                      <button type="button" class="brush-btn" data-brush-tool="select" title="选择框（V）：点选或框选已画图案，拖动移位、拖四角缩放">↖ 选择框</button>
+                      <button type="button" class="brush-btn" data-brush-tool="pen" title="硬边马克笔">硬笔</button>
+                      <button type="button" class="brush-btn active" data-brush-tool="calligraphy" title="毛笔：随运笔速度与压感变粗细出锋">毛笔</button>
+                      <button type="button" class="brush-btn" data-brush-tool="soft" title="柔边画笔：柔和羽化边缘">柔边</button>
+                      <button type="button" class="brush-btn" data-brush-tool="airbrush" title="喷枪：雾状柔边点喷，适合腮红与渐变">喷枪</button>
+                      <button type="button" class="brush-btn" data-brush-tool="smudge" title="涂抹：柔和过渡相邻毛色">涂抹</button>
+                      <button type="button" class="brush-btn" data-brush-tool="fillBrush" title="色块笔：自由圈画闭合填色">色块</button>
+                      <button type="button" class="brush-btn" data-brush-tool="bucket" title="油漆桶：点击自绘色块/笔触可改色，点闭合线条内可填色，点空白处改底色">油漆桶</button>
+                      <button type="button" class="brush-btn" data-brush-tool="eraser" title="橡皮擦：擦除经过的笔触或色块">橡皮</button>
+                      <button type="button" class="brush-btn" data-brush-tool="eyedropper" title="吸管：从画布吸取颜色">吸管</button>
+                    </div>
+
+                    <div class="brush-params-row">
+                      <div class="brush-color-group">
+                        <input type="color" id="exploded-brush-color" value="#1A1A1E" aria-label="画笔颜色" />
+                        <div class="exploded-swatches" id="exploded-swatches"></div>
+                      </div>
+                      <div class="brush-sliders-group">
+                        <label class="brush-mini-slider">
+                          <span>粗细</span>
+                          <input type="range" id="exploded-brush-size" min="0.2" max="24" step="0.1" value="4.2" />
+                          <input type="number" class="brush-num-input tabular" id="exploded-brush-size-val" min="0.2" max="24" step="0.1" value="4.2" aria-label="画笔粗细数值" />
+                        </label>
+                        <label class="brush-mini-slider">
+                          <span>透明</span>
+                          <input type="range" id="exploded-brush-alpha" min="0.05" max="1" step="0.01" value="1" />
+                          <span class="brush-num-unit"><input type="number" class="brush-num-input tabular" id="exploded-brush-alpha-val" min="5" max="100" step="1" value="100" aria-label="画笔透明度百分比" /><span>%</span></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Tab 2: Body Proportions, Part Colors & Gradient -->
+                  <div class="ps-drawer-pane exploded-part-inspector" id="exploded-part-inspector" data-ps-pane="body" hidden></div>
+
+                  <!-- Tab 3: PS-Style Layers Stack -->
+                  <div class="ps-drawer-pane ps-layers-pane" id="exploded-layers-pane" data-ps-pane="layers" hidden></div>
+                </div>
+              </div>
+
+              <!-- Selection floating action bar (shown when marks/regions are selected via Select Box) -->
+              <div class="ps-selection-bar" id="ps-selection-bar" hidden>
+                <span class="ps-sel-info" id="ps-sel-info">已选 1 项</span>
+                <button type="button" class="ps-sel-btn" id="btn-sel-dup" title="复制一份选中图案">复制</button>
+                <button type="button" class="ps-sel-btn danger" id="btn-sel-del" title="删除选中图案（Delete）">删除</button>
+                <button type="button" class="ps-sel-btn" id="btn-sel-clear" title="取消选择（Esc）">完成</button>
+              </div>
+
               <div class="exploded-zoom-bar" id="exploded-zoom-bar" hidden role="group" aria-label="画布缩放与平移">
                 <button type="button" class="zoom-pill-btn" id="btn-part-zoom-out" title="缩小画布（滚轮向下 / -）" aria-label="缩小画布">−</button>
                 <button type="button" class="zoom-pill-val tabular" id="btn-part-zoom-reset" title="点击复位 100%（快捷键 0）">100%</button>
@@ -356,43 +437,6 @@
                 </button>
               </div>
             </div>
-
-            <!-- WYSIWYG Multi-Brush Dock (shown automatically when a component is zoomed in) -->
-            <div class="exploded-brush-dock" id="exploded-brush-dock" hidden>
-              <div class="brush-tools-row" role="toolbar" aria-label="画笔工具">
-                <button type="button" class="brush-btn" data-brush-tool="pen" title="硬边马克笔">硬笔</button>
-                <button type="button" class="brush-btn active" data-brush-tool="calligraphy" title="毛笔：随运笔速度与压感变粗细出锋">毛笔</button>
-                <button type="button" class="brush-btn" data-brush-tool="soft" title="柔边画笔：柔和羽化边缘">柔边</button>
-                <button type="button" class="brush-btn" data-brush-tool="airbrush" title="喷枪：雾状柔边点喷，适合腮红与渐变">喷枪</button>
-                <button type="button" class="brush-btn" data-brush-tool="smudge" title="涂抹：柔和过渡相邻毛色">涂抹</button>
-                <button type="button" class="brush-btn" data-brush-tool="fillBrush" title="色块笔：自由圈画闭合填色">色块</button>
-                <button type="button" class="brush-btn" data-brush-tool="bucket" title="油漆桶：点击自绘色块/笔触可改色，点闭合线条内可填色，点空白处改底色">油漆桶</button>
-                <button type="button" class="brush-btn" data-brush-tool="eraser" title="橡皮擦：擦除经过的笔触或色块">橡皮</button>
-                <button type="button" class="brush-btn" data-brush-tool="eyedropper" title="吸管：从画布吸取颜色">吸管</button>
-              </div>
-
-              <div class="brush-params-row">
-                <div class="brush-color-group">
-                  <input type="color" id="exploded-brush-color" value="#1A1A1E" aria-label="画笔颜色" />
-                  <div class="exploded-swatches" id="exploded-swatches"></div>
-                </div>
-                <div class="brush-sliders-group">
-                  <label class="brush-mini-slider">
-                    <span>粗细</span>
-                    <input type="range" id="exploded-brush-size" min="0.2" max="24" step="0.1" value="4.2" />
-                    <input type="number" class="brush-num-input tabular" id="exploded-brush-size-val" min="0.2" max="24" step="0.1" value="4.2" aria-label="画笔粗细数值" />
-                  </label>
-                  <label class="brush-mini-slider">
-                    <span>透明</span>
-                    <input type="range" id="exploded-brush-alpha" min="0.05" max="1" step="0.01" value="1" />
-                    <span class="brush-num-unit"><input type="number" class="brush-num-input tabular" id="exploded-brush-alpha-val" min="5" max="100" step="1" value="100" aria-label="画笔透明度百分比" /><span>%</span></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Contextual Per-Part Geometry & Color Inspector (2-4 sliders for selected part only) -->
-            <div class="exploded-part-inspector" id="exploded-part-inspector" hidden></div>
           </div>
 
           <!-- Bottom-Left Horizontal Accessory Carousel Dock (aligns bottom flush with right 2.5D stage) -->
@@ -1343,12 +1387,12 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="i18n.js?v=20261127e"></script>
-  <script src="spec.js?v=20261127d"></script>
-  <script src="renderer.js?v=20261127d"></script>
+  <script src="spec.js?v=20261128a"></script>
+  <script src="renderer.js?v=20261128a"></script>
   <script src="decorations.js?v=20261125b"></script>
   <script src="photo-analyzer.js?v=20261125b"></script>
   <script src="app.js?v=20261127d"></script>
-  <script src="exploded-studio.js?v=20261127e"></script>
+  <script src="exploded-studio.js?v=20261128b"></script>
   <script src="plaza.js?v=20261127a"></script>
 </body>
 </html>

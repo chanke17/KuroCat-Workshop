@@ -56,7 +56,7 @@
   let rafId = 0;
 
   // Brush & tool states
-  let activeTool = 'calligraphy'; // 'pen' | 'calligraphy' | 'soft' | 'airbrush' | 'smudge' | 'fillBrush' | 'bucket' | 'eraser' | 'eyedropper'
+  let activeTool = 'calligraphy'; // 'select' | 'pen' | 'calligraphy' | 'soft' | 'airbrush' | 'smudge' | 'fillBrush' | 'bucket' | 'eraser' | 'eyedropper'
   let prevDrawTool = 'calligraphy';
   let brushColor = '#1A1A1E';
   let brushSize = 4.2;
@@ -70,6 +70,13 @@
   let smudgeColor = null;
   let erasedDuringDrag = false;
   let cursorCanvasPt = null;
+
+  // PS-style selection & transform state
+  let selectedItems = []; // [{ type: 'mark' | 'region', index, mirrorIndex }]
+  let selDrag = null;     // { mode: 'marquee' | 'move' | 'scale', startW, curW, handle, centerW, startDist, snapshots, moved }
+
+  // Top-right PS floating corner state
+  let activeCornerTab = null; // null | 'brush' | 'body' | 'layers'
 
   // Skeleton drag state on right-side live #cat-canvas
   let skeletonMode = false;
@@ -106,6 +113,15 @@
   let clearPartBtn = null;
   let brushDockEl = null;
   let inspectorEl = null;
+  let layersPaneEl = null;
+  let quickToolsEl = null;
+  let floatingCornerEl = null;
+  let cornerDrawerEl = null;
+  let drawerTitleEl = null;
+  let brushDotEl = null;
+  let layerCountEl = null;
+  let selectionBarEl = null;
+  let selInfoEl = null;
   let skeletonToggleBtn = null;
   let sizeInput = null;
   let sizeValEl = null;
@@ -247,6 +263,11 @@
       return PART_VIEW.ears.fromCanvasAuto(cPt);
     }
     const p = PART_VIEW[partId].fromCanvas(cPt);
+    if (partId === 'body') {
+      const skin = getSkin();
+      const bw = (skin && skin.shape && skin.shape.bodyWidth) || 1;
+      return { space: 'body', x: p.x / bw, y: p.y };
+    }
     return { space: partId === 'head' ? 'head' : partId, x: p.x, y: p.y };
   }
 
@@ -909,7 +930,7 @@
     return Renderer.getBuild(skin);
   }
 
-  function traceHeadWithJaw(ctxRef, mapPt, cheekFullness, skin) {
+  function appendHeadWithJawSubpath(ctxRef, mapPt, cheekFullness, skin) {
     const cf = cheekFullness || 1;
     const bd = get25DBuild(skin);
     const cheekW = bd.cheekHalfW * cf;
@@ -922,7 +943,6 @@
     const c6a = mapPt({ x: -cheekW - 1.5, y: bd.cheekCtrlTopY });
     const c6b = mapPt({ x: -bd.crownCtrlW, y: bd.crownBaseY });
 
-    ctxRef.beginPath();
     ctxRef.moveTo(crown.x, crown.y);
     ctxRef.bezierCurveTo(c1a.x, c1a.y, c1b.x, c1b.y, rCheek.x, rCheek.y);
     // Connect down to jaw curve (head jawSide starts at (44*cf, 8) -> (0, 34) -> (-44*cf, 8))
@@ -935,7 +955,49 @@
     ctxRef.closePath();
   }
 
-  function traceBodyWithJaw25D(ctxRef, skin) {
+  function traceHeadWithJaw(ctxRef, mapPt, cheekFullness, skin) {
+    ctxRef.beginPath();
+    appendHeadWithJawSubpath(ctxRef, mapPt, cheekFullness, skin);
+  }
+
+  // Head dynamic bleed envelope: region exposed when yaw/pitch/tilt rotates the 3D head dome
+  function appendHeadBleedSubpath(ctxRef, skin) {
+    const cf = (skin.shape && skin.shape.cheekFullness) || 1;
+    const bd = get25DBuild(skin);
+    const padX = 11.5;
+    const padTop = 8.5;
+    const padBot = 9.5;
+    const cheekW = bd.cheekHalfW * cf + padX;
+    const crownY = bd.crownBaseY - padTop;
+    const jaw = Spec.jawSide(true, cf);
+    const mapPt = (p) => PART_VIEW.head.toCanvas(p);
+    const crown = mapPt({ x: 0, y: crownY });
+    const rCheek = mapPt({ x: cheekW, y: bd.cheekY + 1 });
+    const lCheek = mapPt({ x: -cheekW, y: bd.cheekY + 1 });
+    const c1a = mapPt({ x: bd.crownCtrlW + padX * 0.75, y: crownY });
+    const c1b = mapPt({ x: cheekW + 2.0, y: bd.cheekCtrlTopY - padTop * 0.35 });
+    const c6a = mapPt({ x: -cheekW - 2.0, y: bd.cheekCtrlTopY - padTop * 0.35 });
+    const c6b = mapPt({ x: -bd.crownCtrlW - padX * 0.75, y: crownY });
+
+    ctxRef.moveTo(crown.x, crown.y);
+    ctxRef.bezierCurveTo(c1a.x, c1a.y, c1b.x, c1b.y, rCheek.x, rCheek.y);
+    for (let i = 3; i < jaw.length - 1; i++) {
+      const jp = jaw[i];
+      const fracX = jp.x / Math.max(1, 44 * cf);
+      const pt = mapPt({ x: jp.x + fracX * padX, y: jp.y + padBot });
+      ctxRef.lineTo(pt.x, pt.y);
+    }
+    ctxRef.lineTo(lCheek.x, lCheek.y);
+    ctxRef.bezierCurveTo(c6a.x, c6a.y, c6b.x, c6b.y, crown.x, crown.y);
+    ctxRef.closePath();
+  }
+
+  function traceHeadBleedSilhouette(ctxRef, skin) {
+    ctxRef.beginPath();
+    appendHeadBleedSubpath(ctxRef, skin);
+  }
+
+  function appendBodyWithJaw25DSubpath(ctxRef, skin) {
     const s = skin.shape;
     const bd = get25DBuild(skin);
     const hs = s.headScale || 1;
@@ -962,7 +1024,6 @@
 
     // Build exact top chin-notch curve matching renderer.js jawSide(false, cf)
     const jaw = Spec.jawSide(false, cf);
-    ctxRef.beginPath();
     ctxRef.moveTo(lCheek.x, lCheek.y);
     // Trace jaw curve left -> chin -> right (jaw indices 3..length-2 run right->left, so reverse)
     for (let i = jaw.length - 2; i >= 3; i--) {
@@ -987,6 +1048,78 @@
     ctxRef.bezierCurveTo(c5a.x, c5a.y, c5b.x, c5b.y, lCheek.x, lCheek.y);
     ctxRef.closePath();
     return { x0: CW * 0.5, y0: H(0, bd.cheekY).y, x1: CW * 0.5, y1: rBot.y };
+  }
+
+  function traceBodyWithJaw25D(ctxRef, skin) {
+    ctxRef.beginPath();
+    return appendBodyWithJaw25DSubpath(ctxRef, skin);
+  }
+
+  // Body dynamic bleed envelope: includes the neck/upper-chest hidden behind the resting chin
+  // that becomes visible when the cat looks up, turns its head, or tilts its head.
+  function appendBodyBleedSubpath(ctxRef, skin) {
+    const s = skin.shape;
+    const bd = get25DBuild(skin);
+    const hs = s.headScale || 1;
+    const bw = s.bodyWidth || 1;
+    const nw = s.neckWidth || 1;
+    const cf = s.cheekFullness || 1;
+    const headOffY = -100 + bd.headLift;
+    const T = (wx, wy) => PART_VIEW.body.toCanvas({ x: wx, y: wy });
+    const H = (hx, hy) => T(hx * hs, headOffY + hy * hs);
+    const B = (bx, by) => T(bx * bw, by);
+
+    const cheekHalfW = bd.cheekHalfW * cf + 5.5;
+    const rNeckX = (cheekHalfW - bd.neckPinchX) * nw;
+    const lNeckX = -rNeckX;
+    const neckWaistW = bd.waistCtrlW * (1 + (nw - 1) * 0.32) + 4.5;
+
+    const topL = H(-cheekHalfW, 4);
+    const topMid = H(0, -10);
+    const topR = H(cheekHalfW, 4);
+    const rHip = B(bd.hipHalfW + 4.5, -14);
+    const rBot = B(bd.botHalfW + 4.5, 16);
+    const lBot = B(-bd.botHalfW - 4.5, 16);
+    const lHip = B(-bd.hipHalfW - 4.5, -14);
+
+    ctxRef.moveTo(topL.x, topL.y);
+    ctxRef.quadraticCurveTo(topMid.x, topMid.y, topR.x, topR.y);
+    const c2a = H(rNeckX, bd.neckCtrlY);
+    const c2b = B(neckWaistW, bd.waistCtrlY);
+    ctxRef.bezierCurveTo(c2a.x, c2a.y, c2b.x, c2b.y, rHip.x, rHip.y);
+    const c3a = B(bd.botOuterW + 4.5, 6), c3b = B(bd.botInnerW + 4.5, 16);
+    ctxRef.bezierCurveTo(c3a.x, c3a.y, c3b.x, c3b.y, rBot.x, rBot.y);
+    ctxRef.lineTo(lBot.x, lBot.y);
+    const c4a = B(-bd.botInnerW - 4.5, 16), c4b = B(-bd.botOuterW - 4.5, 6);
+    ctxRef.bezierCurveTo(c4a.x, c4a.y, c4b.x, c4b.y, lHip.x, lHip.y);
+    const c5a = B(-neckWaistW, bd.waistCtrlY);
+    const c5b = H(lNeckX, bd.neckCtrlY);
+    ctxRef.bezierCurveTo(c5a.x, c5a.y, c5b.x, c5b.y, topL.x, topL.y);
+    ctxRef.closePath();
+    return { x0: CW * 0.5, y0: topMid.y, x1: CW * 0.5, y1: rBot.y };
+  }
+
+  function traceBodyBleedSilhouette(ctxRef, skin) {
+    ctxRef.beginPath();
+    return appendBodyBleedSubpath(ctxRef, skin);
+  }
+
+  function hasDynamicBleed(partId) {
+    return partId === 'head' || partId === 'body';
+  }
+
+  function traceZoomedPartBleed(ctxRef, partId, skin, earSpace) {
+    if (partId === 'head') {
+      const bd = get25DBuild(skin);
+      const c = PART_VIEW.head.toCanvas({ x: 0, y: 0 });
+      const ry = Math.abs(bd.crownBaseY - 8.5) * PART_VIEW.head.scale;
+      traceHeadBleedSilhouette(ctxRef, skin);
+      return { x0: c.x, y0: c.y - ry, x1: c.x, y1: c.y + 43.5 * PART_VIEW.head.scale };
+    }
+    if (partId === 'body') {
+      return traceBodyBleedSilhouette(ctxRef, skin);
+    }
+    return traceZoomedPartSilhouette(ctxRef, partId, skin, earSpace);
   }
 
   function traceZoomedPartSilhouette(ctxRef, partId, skin, earSpace) {
@@ -1115,17 +1248,25 @@
       };
       const wScale = partId === 'ears' ? 2.15 : PART_VIEW[partId].scale;
 
+      const useBleed = hasDynamicBleed(partId);
+
       // Soft floating drop shadow (no thick white sticker border)
       ctx.save();
       drawFloatingShadow(ctx, false);
-      const gradBox0 = traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
+      const gradBox0 = useBleed
+        ? traceZoomedPartBleed(ctx, partId, skin, unitSpace)
+        : traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
       ctx.fillStyle = partFillStyle(ctx, skin, unitSpace, gradBox0.x0, gradBox0.y0, gradBox0.x1, gradBox0.y1, fallbackCol);
       ctx.fill();
       ctx.restore();
 
-      // Clipped part art + live draft stroke
+      // Clipped part art + live draft stroke (expanded to dynamic bleed for head/body so users can see & edit neck/turn-exposed areas)
       ctx.save();
-      traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
+      if (useBleed) {
+        traceZoomedPartBleed(ctx, partId, skin, unitSpace);
+      } else {
+        traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
+      }
       ctx.clip();
 
       // Ear inner pink preview
@@ -1183,11 +1324,51 @@
 
       ctx.restore();
 
-      // Subtle silhouette contour
+      // Dynamic bleed band overlay + dashed bleed outline + solid resting-view silhouette contour
+      if (useBleed) {
+        ctx.save();
+        ctx.beginPath();
+        if (partId === 'head') {
+          appendHeadBleedSubpath(ctx, skin);
+          appendHeadWithJawSubpath(ctx, (p) => PART_VIEW.head.toCanvas(p), skin.shape.cheekFullness, skin);
+        } else {
+          appendBodyBleedSubpath(ctx, skin);
+          appendBodyWithJaw25DSubpath(ctx, skin);
+        }
+        ctx.fillStyle = 'rgba(255, 249, 240, 0.28)';
+        ctx.fill('evenodd');
+        ctx.restore();
+
+        // Dashed outer boundary for dynamic turn/look-up exposed bleed zone
+        ctx.save();
+        traceZoomedPartBleed(ctx, partId, skin, unitSpace);
+        ctx.setLineDash([5 / effScale, 4 / effScale]);
+        ctx.strokeStyle = 'rgba(217, 119, 54, 0.58)';
+        ctx.lineWidth = 1.35 / effScale;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Solid silhouette contour (resting front-view visible boundary)
       traceZoomedPartSilhouette(ctx, partId, skin, unitSpace);
-      ctx.strokeStyle = 'rgba(92, 76, 64, 0.25)';
-      ctx.lineWidth = 1.5 / effScale;
+      ctx.strokeStyle = useBleed ? 'rgba(72, 58, 48, 0.48)' : 'rgba(92, 76, 64, 0.25)';
+      ctx.lineWidth = (useBleed ? 1.65 : 1.5) / effScale;
       ctx.stroke();
+
+      // Paw-cuff divider hint for arms/hindLeg (x >= 72 is covered by paw color in renderer)
+      if (partId === 'leftArm' || partId === 'rightArm' || partId === 'hindLeg') {
+        const cuffY = toPartCanvas(partId, { x: 72, y: 0 }).y;
+        const hw = Math.abs(toPartCanvas(partId, { x: 0, y: 10 }).x - toPartCanvas(partId, { x: 0, y: 0 }).x);
+        ctx.save();
+        ctx.setLineDash([4 / effScale, 4 / effScale]);
+        ctx.strokeStyle = 'rgba(217, 119, 54, 0.45)';
+        ctx.lineWidth = 1.2 / effScale;
+        ctx.beginPath();
+        ctx.moveTo(CW * 0.5 - hw, cuffY);
+        ctx.lineTo(CW * 0.5 + hw, cuffY);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // Gentle anatomical guide overlays (eyes/nose/mouth on head, supporting heterochromia & pupil color)
       if (partId === 'head') {
@@ -1207,11 +1388,31 @@
           ctx.ellipse(e.x, e.y, 3.0 * hs, 6.2 * hs, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        const n = toPartCanvas('head', { x: 0, y: 7.5 });
-        ctx.fillStyle = pal.nose ? rgbaCss(pal.nose, 0.9) : 'rgba(235, 156, 168, 0.9)';
-        ctx.beginPath();
-        ctx.ellipse(n.x, n.y, 3.2 * hs, 2.2 * hs, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const n = toPartCanvas('head', { x: 0, y: 8.2 });
+        const noseHidden = isNoseHidden(pal);
+        if (noseHidden) {
+          ctx.save();
+          ctx.setLineDash([3 / effScale, 2.5 / effScale]);
+          ctx.strokeStyle = 'rgba(217, 119, 54, 0.82)';
+          ctx.lineWidth = 1.25 / effScale;
+          ctx.beginPath();
+          ctx.moveTo(n.x - 2.6 * hs, n.y - 1.2 * hs);
+          ctx.quadraticCurveTo(n.x, n.y - 1.8 * hs, n.x + 2.6 * hs, n.y - 1.2 * hs);
+          ctx.quadraticCurveTo(n.x + 2.0 * hs, n.y + 0.7 * hs, n.x, n.y + 1.7 * hs);
+          ctx.quadraticCurveTo(n.x - 2.0 * hs, n.y + 0.7 * hs, n.x - 2.6 * hs, n.y - 1.2 * hs);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.fillStyle = pal.nose ? rgbaCss(pal.nose, 0.9) : 'rgba(235, 156, 168, 0.9)';
+          ctx.beginPath();
+          ctx.moveTo(n.x - 2.3 * hs, n.y - 1.1 * hs);
+          ctx.quadraticCurveTo(n.x, n.y - 1.6 * hs, n.x + 2.3 * hs, n.y - 1.1 * hs);
+          ctx.quadraticCurveTo(n.x + 1.8 * hs, n.y + 0.6 * hs, n.x, n.y + 1.5 * hs);
+          ctx.quadraticCurveTo(n.x - 1.8 * hs, n.y + 0.6 * hs, n.x - 2.3 * hs, n.y - 1.1 * hs);
+          ctx.closePath();
+          ctx.fill();
+        }
         const mouthHidden = !!(pal.mouth && pal.mouth.a !== undefined && pal.mouth.a < 0.01);
         if (!mouthHidden) {
           const mL = toPartCanvas('head', { x: -3.5, y: 11 });
@@ -1246,8 +1447,22 @@
       }
     } else if (partId === 'head') {
       drawSingleUnit('head', pal.headBody || pal.body);
+      ctx.save();
+      ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+      ctx.fillStyle = 'rgba(115, 98, 84, 0.72)';
+      ctx.textAlign = 'left';
+      const _tr = window.t || ((s) => s);
+      ctx.fillText(_tr('实线：正脸可见 · 虚线：转头/抬头露出区（可编辑）'), 12, CH - 12);
+      ctx.restore();
     } else if (partId === 'body') {
       drawSingleUnit('body', pal.body);
+      ctx.save();
+      ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+      ctx.fillStyle = 'rgba(115, 98, 84, 0.72)';
+      ctx.textAlign = 'left';
+      const _tr = window.t || ((s) => s);
+      ctx.fillText(_tr('实线：正脸可见 · 虚线：抬头/转头露出脖子区（可编辑）'), 12, 24);
+      ctx.restore();
     } else if (partId === 'leftArm' || partId === 'rightArm') {
       drawSingleUnit(partId, pal.legs);
       // Clean side annotations outside the arm silhouette
@@ -1294,8 +1509,57 @@
       ctx.restore();
     }
 
+    // Selection box overlay (marquee or active transform box with 4 corner handles)
+    if (activeTool === 'select') {
+      const raw = getRaw();
+      if (raw && selectedItems.length > 0) {
+        const box = computeSelectionWorldBBox(raw, skin);
+        if (box) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(37, 99, 235, 0.06)';
+          ctx.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+          ctx.setLineDash([4 / effScale, 3 / effScale]);
+          ctx.strokeStyle = '#2563EB';
+          ctx.lineWidth = 1.4 / effScale;
+          ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+          ctx.setLineDash([]);
+          const hr = 4.2 / effScale;
+          const corners = [
+            { x: box.minX, y: box.minY },
+            { x: box.maxX, y: box.minY },
+            { x: box.maxX, y: box.maxY },
+            { x: box.minX, y: box.maxY }
+          ];
+          for (let ci = 0; ci < corners.length; ci++) {
+            ctx.beginPath();
+            ctx.arc(corners[ci].x, corners[ci].y, hr, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.strokeStyle = '#2563EB';
+            ctx.lineWidth = 1.5 / effScale;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+      if (selDrag && selDrag.mode === 'marquee' && selDrag.startW && selDrag.curW) {
+        const x0 = Math.min(selDrag.startW.x, selDrag.curW.x);
+        const y0 = Math.min(selDrag.startW.y, selDrag.curW.y);
+        const w = Math.abs(selDrag.curW.x - selDrag.startW.x);
+        const h = Math.abs(selDrag.curW.y - selDrag.startW.y);
+        ctx.save();
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.08)';
+        ctx.fillRect(x0, y0, w, h);
+        ctx.setLineDash([4 / effScale, 3 / effScale]);
+        ctx.strokeStyle = '#2563EB';
+        ctx.lineWidth = 1.25 / effScale;
+        ctx.strokeRect(x0, y0, w, h);
+        ctx.restore();
+      }
+    }
+
     // Brush cursor preview ring (scales naturally with zoomed part while keeping crisp screen stroke)
-    if (cursorCanvasPt && !panning && !panToolActive && !spacePanHeld && activeTool !== 'bucket' && activeTool !== 'eyedropper') {
+    if (cursorCanvasPt && !panning && !panToolActive && !spacePanHeld && activeTool !== 'bucket' && activeTool !== 'eyedropper' && activeTool !== 'select') {
       const wScale = partId === 'ears' ? 2.15 : PART_VIEW[partId].scale;
       const r = Math.max(2.2 / effScale, brushSize * wScale * (activeTool === 'airbrush' ? 1.1 : 0.55));
       ctx.save();
@@ -1422,21 +1686,135 @@
     return null;
   }
 
+  // -------------------------------------------------------------------------
+  // PS-Style Per-Part Layer Stack (stored as workshop metadata, exported in order)
+  // -------------------------------------------------------------------------
+  const activeLayerByPart = {};
+
+  function getPartSpaces(partId) {
+    const p = PART_BY_ID[partId];
+    return p ? p.spaces : [partId];
+  }
+
+  function ensurePartLayers(raw, partId) {
+    if (!raw) return [];
+    if (!raw._layers || typeof raw._layers !== 'object') raw._layers = {};
+    let layers = raw._layers[partId];
+    if (!Array.isArray(layers) || layers.length === 0) {
+      layers = [{ id: 'L1', name: '花纹层 1', visible: true }];
+      raw._layers[partId] = layers;
+    }
+    const spaces = getPartSpaces(partId);
+    const validIds = new Set(layers.map((l) => l.id));
+    if (Array.isArray(raw.marks)) {
+      for (let i = 0; i < raw.marks.length; i++) {
+        const m = raw.marks[i];
+        if (!m || spaces.indexOf(m.space) === -1) continue;
+        if (!m._layerId || !validIds.has(m._layerId)) {
+          m._layerId = layers[0].id;
+        }
+      }
+    }
+    if (!activeLayerByPart[partId] || !validIds.has(activeLayerByPart[partId])) {
+      activeLayerByPart[partId] = layers[layers.length - 1].id;
+    }
+    return layers;
+  }
+
+  function getActiveLayer(raw, partId) {
+    const layers = ensurePartLayers(raw, partId);
+    const id = activeLayerByPart[partId];
+    for (let i = 0; i < layers.length; i++) {
+      if (layers[i].id === id) return layers[i];
+    }
+    return layers[layers.length - 1];
+  }
+
+  function syncPartMarksByLayers(raw, partId) {
+    if (!raw || !Array.isArray(raw.marks)) return;
+    const layers = ensurePartLayers(raw, partId);
+    const spaces = getPartSpaces(partId);
+    const visById = {};
+    const buckets = {};
+    for (let i = 0; i < layers.length; i++) {
+      visById[layers[i].id] = layers[i].visible !== false;
+      buckets[layers[i].id] = [];
+    }
+    const otherMarks = [];
+    for (let i = 0; i < raw.marks.length; i++) {
+      const m = raw.marks[i];
+      if (!m || spaces.indexOf(m.space) === -1) {
+        otherMarks.push(m);
+        continue;
+      }
+      const lid = (m._layerId && buckets[m._layerId]) ? m._layerId : layers[0].id;
+      m._layerId = lid;
+      if (visById[lid]) delete m._hidden;
+      else m._hidden = true;
+      buckets[lid].push(m);
+    }
+    const orderedPartMarks = [];
+    for (let i = 0; i < layers.length; i++) {
+      const arr = buckets[layers[i].id];
+      for (let j = 0; j < arr.length; j++) orderedPartMarks.push(arr[j]);
+    }
+    raw.marks = otherMarks.concat(orderedPartMarks);
+  }
+
+  function countLayerMarks(raw, partId, layerId) {
+    if (!raw || !Array.isArray(raw.marks)) return 0;
+    const spaces = getPartSpaces(partId);
+    let n = 0;
+    for (let i = 0; i < raw.marks.length; i++) {
+      const m = raw.marks[i];
+      if (m && spaces.indexOf(m.space) !== -1 && m._layerId === layerId) n++;
+    }
+    return n;
+  }
+
+  function createPartLayer(raw, partId, customName) {
+    const layers = ensurePartLayers(raw, partId);
+    let maxNum = layers.length;
+    for (let i = 0; i < layers.length; i++) {
+      const match = String(layers[i].id || '').match(/^L(\d+)$/);
+      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+    }
+    const nextId = 'L' + (maxNum + 1);
+    const layer = {
+      id: nextId,
+      name: customName || ('花纹层 ' + (layers.length + 1)),
+      visible: true
+    };
+    layers.push(layer);
+    activeLayerByPart[partId] = layer.id;
+    return layer;
+  }
+
   function commitDraftStroke() {
     const raw = getRaw();
     const api = API();
     if (!raw || !draftPts.length) return;
     if (!raw.marks) raw.marks = [];
 
+    const activeLayer = getActiveLayer(raw, selectedPartId);
+    if (activeLayer && activeLayer.visible === false) {
+      activeLayer.visible = true;
+      if (api) api.showToast('已自动显示当前图层「' + activeLayer.name + '」');
+    }
+
     const primary = buildMarkObject(activeDrawSpace, draftPts);
     if (!primary) return;
+    if (activeLayer) primary._layerId = activeLayer.id;
 
     const toAdd = [primary];
     if (mirrorEnabled && PART_BY_ID[selectedPartId].canMirror) {
       const mir = mirrorSpaceAndPts(activeDrawSpace, draftPts);
       if (mir) {
         const m2 = buildMarkObject(mir.space, mir.pts);
-        if (m2) toAdd.push(m2);
+        if (m2) {
+          if (activeLayer) m2._layerId = activeLayer.id;
+          toAdd.push(m2);
+        }
       }
     }
 
@@ -1446,7 +1824,9 @@
     }
 
     for (let i = 0; i < toAdd.length; i++) raw.marks.push(toAdd[i]);
+    syncPartMarksByLayers(raw, selectedPartId);
     notifyChange(true);
+    renderPartInspector();
   }
 
   function distPointToSegment(px, py, ax, ay, bx, by) {
@@ -1456,6 +1836,366 @@
     if (len2 <= 1e-9) return Math.hypot(px - ax, py - ay);
     const t = clamp(((px - ax) * dx + (py - ay) * dy) / len2, 0, 1);
     return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  // -------------------------------------------------------------------------
+  // PS-Style Selection Box: Hit-Test, Marquee, Move, Scale, Duplicate & Delete
+  // -------------------------------------------------------------------------
+  function partToWorld(partId, space, pt, skin) {
+    if (partId === 'body') {
+      const bw = (skin && skin.shape && skin.shape.bodyWidth) || 1;
+      return PART_VIEW.body.toCanvas({ x: pt.x * bw, y: pt.y });
+    }
+    return toPartCanvas(partId, pt, space);
+  }
+
+  function updateSelectionBarUI() {
+    if (!selectionBarEl) return;
+    const active = mode === 'part' && activeTool === 'select' && selectedItems.length > 0;
+    selectionBarEl.hidden = !active;
+    if (active && selInfoEl) {
+      selInfoEl.textContent = '已选 ' + selectedItems.length + ' 项 · 拖动改位 / 四角缩放';
+    }
+  }
+
+  function clearSelection() {
+    if (selectedItems.length === 0 && !selDrag) {
+      updateSelectionBarUI();
+      return;
+    }
+    selectedItems = [];
+    selDrag = null;
+    updateSelectionBarUI();
+    requestRedraw();
+  }
+
+  function findMirrorItemIndex(raw, type, idx, partId) {
+    if (!mirrorEnabled || !PART_BY_ID[partId] || !PART_BY_ID[partId].canMirror) return -1;
+    if (type === 'mark') {
+      const src = raw.marks && raw.marks[idx];
+      if (!src || !src.points || !src.points.length) return -1;
+      const p0 = { x: src.points[0][0], y: src.points[0][1] };
+      const pLast = { x: src.points[src.points.length - 1][0], y: src.points[src.points.length - 1][1] };
+      const mir = mirrorSpaceAndPts(src.space, [p0, pLast]);
+      if (!mir) return -1;
+      const spaces = mir.space === 'head' ? ['head', 'skull'] : [mir.space];
+      const srcCol = String(src.color || '').toUpperCase();
+      for (let i = raw.marks.length - 1; i >= 0; i--) {
+        if (i === idx) continue;
+        const m = raw.marks[i];
+        if (!m || m._hidden || spaces.indexOf(m.space) === -1) continue;
+        if (m.kind !== src.kind || String(m.color || '').toUpperCase() !== srcCol) continue;
+        if (!m.points || m.points.length !== src.points.length) continue;
+        const d0 = Math.hypot(m.points[0][0] - mir.pts[0].x, m.points[0][1] - mir.pts[0].y);
+        const d1 = Math.hypot(m.points[m.points.length - 1][0] - mir.pts[1].x, m.points[m.points.length - 1][1] - mir.pts[1].y);
+        if (d0 <= 2.5 && d1 <= 2.5) return i;
+      }
+    }
+    return -1;
+  }
+
+  function getItemWorldPoints(raw, skin, item) {
+    const out = [];
+    if (item.type === 'mark') {
+      const m = raw.marks && raw.marks[item.index];
+      if (!m || !m.points) return out;
+      for (let i = 0; i < m.points.length; i++) {
+        out.push(partToWorld(selectedPartId, m.space, { x: m.points[i][0], y: m.points[i][1] }, skin));
+      }
+    } else if (item.type === 'region') {
+      const r = raw.regions && raw.regions[item.index];
+      if (!r || !r.anchors) return out;
+      const flat = Spec.flattenRegion(r.anchors);
+      for (let i = 0; i < flat.length; i++) {
+        out.push(partToWorld(selectedPartId, r.space, flat[i], skin));
+      }
+    }
+    return out;
+  }
+
+  function computeSelectionWorldBBox(raw, skin) {
+    if (!raw || !selectedItems.length) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let count = 0;
+    for (let i = 0; i < selectedItems.length; i++) {
+      const pts = getItemWorldPoints(raw, skin, selectedItems[i]);
+      for (let j = 0; j < pts.length; j++) {
+        if (pts[j].x < minX) minX = pts[j].x;
+        if (pts[j].x > maxX) maxX = pts[j].x;
+        if (pts[j].y < minY) minY = pts[j].y;
+        if (pts[j].y > maxY) maxY = pts[j].y;
+        count++;
+      }
+    }
+    if (!count) return null;
+    const pad = 7;
+    minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+    if (maxX - minX < 18) {
+      const cx = (minX + maxX) * 0.5;
+      minX = cx - 9; maxX = cx + 9;
+    }
+    if (maxY - minY < 18) {
+      const cy = (minY + maxY) * 0.5;
+      minY = cy - 9; maxY = cy + 9;
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  function hitTestSelectionHandle(wPt, box, effScale) {
+    if (!box) return null;
+    const r = 9 / Math.max(0.4, effScale);
+    const handles = [
+      { id: 'nw', x: box.minX, y: box.minY },
+      { id: 'ne', x: box.maxX, y: box.minY },
+      { id: 'se', x: box.maxX, y: box.maxY },
+      { id: 'sw', x: box.minX, y: box.maxY }
+    ];
+    for (let i = 0; i < handles.length; i++) {
+      if (Math.hypot(wPt.x - handles[i].x, wPt.y - handles[i].y) <= r) return handles[i].id;
+    }
+    return null;
+  }
+
+  function hitTestPatternAt(raw, skin, partId, wPt) {
+    const mapped = fromPartCanvas(partId, wPt);
+    const spaces = mapped.space === 'head' ? ['head', 'skull'] : [mapped.space];
+    const layers = ensurePartLayers(raw, partId);
+    const activeLayer = getActiveLayer(raw, partId);
+
+    // Search marks from topmost to bottommost (prefer active layer first, then any visible mark)
+    if (Array.isArray(raw.marks)) {
+      const searchPass = (onlyActive) => {
+        for (let i = raw.marks.length - 1; i >= 0; i--) {
+          const m = raw.marks[i];
+          if (!m || m._hidden || spaces.indexOf(m.space) === -1) continue;
+          if (onlyActive && activeLayer && m._layerId && m._layerId !== activeLayer.id) continue;
+          if (markContainsPoint(m, mapped)) {
+            return { type: 'mark', index: i, mirrorIndex: findMirrorItemIndex(raw, 'mark', i, partId) };
+          }
+        }
+        return null;
+      };
+      const hitActive = (layers.length > 1 && activeLayer) ? searchPass(true) : null;
+      if (hitActive) return hitActive;
+      const hitAny = searchPass(false);
+      if (hitAny) return hitAny;
+    }
+
+    // Fallback: hit-test regions
+    const rIdx = findHitRegionIndex(skin, partId, mapped.space, wPt);
+    if (rIdx !== -1) {
+      return { type: 'region', index: rIdx, mirrorIndex: -1 };
+    }
+    return null;
+  }
+
+  function snapshotSelectedItems(raw) {
+    const snaps = [];
+    const seenMarks = new Set();
+    const seenRegions = new Set();
+    const pushSnap = (type, idx, isMirror) => {
+      if (idx < 0) return;
+      if (type === 'mark') {
+        if (seenMarks.has(idx) || !raw.marks || !raw.marks[idx]) return;
+        seenMarks.add(idx);
+        const m = raw.marks[idx];
+        snaps.push({
+          type: 'mark', index: idx, isMirror, space: m.space,
+          width: m.width || 2,
+          points: m.points.map((p) => [p[0], p[1]])
+        });
+      } else if (type === 'region') {
+        if (seenRegions.has(idx) || !raw.regions || !raw.regions[idx]) return;
+        seenRegions.add(idx);
+        const r = raw.regions[idx];
+        snaps.push({
+          type: 'region', index: idx, isMirror, space: r.space,
+          anchors: r.anchors.map((a) => ({
+            x: a.x, y: a.y,
+            inX: a.inX !== undefined ? a.inX : a.x,
+            inY: a.inY !== undefined ? a.inY : a.y,
+            outX: a.outX !== undefined ? a.outX : a.x,
+            outY: a.outY !== undefined ? a.outY : a.y
+          }))
+        });
+      }
+    };
+    for (let i = 0; i < selectedItems.length; i++) {
+      const it = selectedItems[i];
+      pushSnap(it.type, it.index, false);
+      if (it.mirrorIndex >= 0 && it.mirrorIndex !== it.index) {
+        pushSnap(it.type, it.mirrorIndex, true);
+      }
+    }
+    return snaps;
+  }
+
+  function computeSnapshotCenterPart(snaps, includeMirror) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < snaps.length; i++) {
+      const s = snaps[i];
+      if (!!s.isMirror !== !!includeMirror) continue;
+      if (s.type === 'mark') {
+        for (let j = 0; j < s.points.length; j++) {
+          const x = s.points[j][0], y = s.points[j][1];
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      } else {
+        for (let j = 0; j < s.anchors.length; j++) {
+          const a = s.anchors[j];
+          if (a.x < minX) minX = a.x; if (a.x > maxX) maxX = a.x;
+          if (a.y < minY) minY = a.y; if (a.y > maxY) maxY = a.y;
+        }
+      }
+    }
+    if (!isFinite(minX)) return { x: 0, y: 0 };
+    return { x: (minX + maxX) * 0.5, y: (minY + maxY) * 0.5 };
+  }
+
+  function applySelectionMove(raw, partId, snaps, startW, curW) {
+    const p0 = fromPartCanvas(partId, startW);
+    const p1 = fromPartCanvas(partId, curW);
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const mirrorFlipX = partId !== 'leftArm' && partId !== 'rightArm';
+
+    for (let i = 0; i < snaps.length; i++) {
+      const s = snaps[i];
+      const ddx = (s.isMirror && mirrorFlipX) ? -dx : dx;
+      if (s.type === 'mark' && raw.marks[s.index]) {
+        raw.marks[s.index].points = s.points.map((pt) => [
+          round2(clamp(pt[0] + ddx, -400, 400)),
+          round2(clamp(pt[1] + dy, -400, 400))
+        ]);
+      } else if (s.type === 'region' && raw.regions[s.index]) {
+        raw.regions[s.index].anchors = s.anchors.map((a) => ({
+          x: round2(clamp(a.x + ddx, -400, 400)),
+          y: round2(clamp(a.y + dy, -400, 400)),
+          inX: round2(clamp(a.inX + ddx, -400, 400)),
+          inY: round2(clamp(a.inY + dy, -400, 400)),
+          outX: round2(clamp(a.outX + ddx, -400, 400)),
+          outY: round2(clamp(a.outY + dy, -400, 400))
+        }));
+      }
+    }
+  }
+
+  function applySelectionScale(raw, snaps, scaleFactor) {
+    const k = clamp(scaleFactor, 0.15, 5.0);
+    const cMain = computeSnapshotCenterPart(snaps, false);
+    const cMir = computeSnapshotCenterPart(snaps, true);
+    for (let i = 0; i < snaps.length; i++) {
+      const s = snaps[i];
+      const c = s.isMirror ? cMir : cMain;
+      if (s.type === 'mark' && raw.marks[s.index]) {
+        const m = raw.marks[s.index];
+        m.points = s.points.map((pt) => [
+          round2(clamp(c.x + (pt[0] - c.x) * k, -400, 400)),
+          round2(clamp(c.y + (pt[1] - c.y) * k, -400, 400))
+        ]);
+        if (m.kind === 'stroke') {
+          m.width = round2(clamp(s.width * k, 0.2, 24));
+        }
+      } else if (s.type === 'region' && raw.regions[s.index]) {
+        raw.regions[s.index].anchors = s.anchors.map((a) => ({
+          x: round2(clamp(c.x + (a.x - c.x) * k, -400, 400)),
+          y: round2(clamp(c.y + (a.y - c.y) * k, -400, 400)),
+          inX: round2(clamp(c.x + (a.inX - c.x) * k, -400, 400)),
+          inY: round2(clamp(c.y + (a.inY - c.y) * k, -400, 400)),
+          outX: round2(clamp(c.x + (a.outX - c.x) * k, -400, 400)),
+          outY: round2(clamp(c.y + (a.outY - c.y) * k, -400, 400))
+        }));
+      }
+    }
+  }
+
+  function duplicateSelection() {
+    const raw = getRaw();
+    const api = API();
+    if (!raw || !selectedItems.length) return;
+    if (!raw.marks) raw.marks = [];
+    const nextSel = [];
+    const offset = 5;
+    for (let i = 0; i < selectedItems.length; i++) {
+      const it = selectedItems[i];
+      if (it.type === 'mark' && raw.marks[it.index] && raw.marks.length < Spec.MAX_MARKS) {
+        const src = raw.marks[it.index];
+        const copy = JSON.parse(JSON.stringify(src));
+        copy.points = copy.points.map((p) => [round2(clamp(p[0] + offset, -400, 400)), round2(clamp(p[1] + offset, -400, 400))]);
+        raw.marks.push(copy);
+        const newIdx = raw.marks.length - 1;
+        let newMirIdx = -1;
+        if (it.mirrorIndex >= 0 && raw.marks[it.mirrorIndex] && raw.marks.length < Spec.MAX_MARKS) {
+          const mSrc = raw.marks[it.mirrorIndex];
+          const mCopy = JSON.parse(JSON.stringify(mSrc));
+          const flipX = selectedPartId !== 'leftArm' && selectedPartId !== 'rightArm';
+          mCopy.points = mCopy.points.map((p) => [round2(clamp(p[0] + (flipX ? -offset : offset), -400, 400)), round2(clamp(p[1] + offset, -400, 400))]);
+          raw.marks.push(mCopy);
+          newMirIdx = raw.marks.length - 1;
+        }
+        nextSel.push({ type: 'mark', index: newIdx, mirrorIndex: newMirIdx });
+      }
+    }
+    if (!nextSel.length) return;
+    syncPartMarksByLayers(raw, selectedPartId);
+    selectedItems = nextSel;
+    notifyChange(true);
+    renderPartInspector();
+    updateSelectionBarUI();
+    if (api) api.showToast('已复制选中图案并偏移');
+  }
+
+  function deleteSelection() {
+    const raw = getRaw();
+    if (!raw || !selectedItems.length) return;
+    const delMarks = new Set();
+    const delRegions = new Set();
+    for (let i = 0; i < selectedItems.length; i++) {
+      const it = selectedItems[i];
+      if (it.type === 'mark') {
+        delMarks.add(it.index);
+        if (it.mirrorIndex >= 0) delMarks.add(it.mirrorIndex);
+      } else if (it.type === 'region') {
+        delRegions.add(it.index);
+      }
+    }
+    if (delMarks.size > 0 && Array.isArray(raw.marks)) {
+      raw.marks = raw.marks.filter((_, idx) => !delMarks.has(idx));
+    }
+    if (delRegions.size > 0 && Array.isArray(raw.regions)) {
+      raw.regions = raw.regions.filter((_, idx) => !delRegions.has(idx));
+    }
+    selectedItems = [];
+    selDrag = null;
+    notifyChange(true);
+    renderPartInspector();
+    updateSelectionBarUI();
+  }
+
+  function nudgeSelection(dx, dy) {
+    const raw = getRaw();
+    if (!raw || !selectedItems.length) return;
+    const snaps = snapshotSelectedItems(raw);
+    const mirrorFlipX = selectedPartId !== 'leftArm' && selectedPartId !== 'rightArm';
+    for (let i = 0; i < snaps.length; i++) {
+      const s = snaps[i];
+      const ddx = (s.isMirror && mirrorFlipX) ? -dx : dx;
+      if (s.type === 'mark' && raw.marks[s.index]) {
+        raw.marks[s.index].points = s.points.map((p) => [round2(clamp(p[0] + ddx, -400, 400)), round2(clamp(p[1] + dy, -400, 400))]);
+      } else if (s.type === 'region' && raw.regions[s.index]) {
+        raw.regions[s.index].anchors = s.anchors.map((a) => ({
+          x: round2(clamp(a.x + ddx, -400, 400)),
+          y: round2(clamp(a.y + dy, -400, 400)),
+          inX: round2(clamp(a.inX + ddx, -400, 400)),
+          inY: round2(clamp(a.inY + dy, -400, 400)),
+          outX: round2(clamp(a.outX + ddx, -400, 400)),
+          outY: round2(clamp(a.outY + dy, -400, 400))
+        }));
+      }
+    }
+    notifyChange(true);
+    requestRedraw();
   }
 
   // Eraser: removes marks/regions near pointer in part space (using point-to-segment distance)
@@ -1476,10 +2216,15 @@
     }
 
     let removed = false;
+    const layers = ensurePartLayers(raw, selectedPartId);
+    const activeLayer = getActiveLayer(raw, selectedPartId);
+    const filterByActiveLayer = layers.length > 1 && activeLayer;
     if (raw.marks && raw.marks.length) {
       const before = raw.marks.length;
       raw.marks = raw.marks.filter((m) => {
         if (spacesToHit.indexOf(m.space) === -1) return true;
+        if (m._hidden) return true;
+        if (filterByActiveLayer && m._layerId && m._layerId !== activeLayer.id) return true;
         const pts = m.points;
         if (!pts || !pts.length) return true;
         const tol = hitR + (m.width || 2) * 0.5;
@@ -2087,11 +2832,33 @@
     if (api && typeof api.setPose === 'function') api.setPose('idle');
   }
 
+  function setCornerTab(tab) {
+    activeCornerTab = tab || null;
+    if (cornerDrawerEl) cornerDrawerEl.hidden = !activeCornerTab;
+    if (floatingCornerEl) {
+      const tabs = floatingCornerEl.querySelectorAll('[data-ps-tab]');
+      for (let i = 0; i < tabs.length; i++) {
+        const isAct = tabs[i].dataset.psTab === activeCornerTab;
+        tabs[i].classList.toggle('active', isAct);
+        tabs[i].setAttribute('aria-expanded', isAct ? 'true' : 'false');
+      }
+    }
+    if (brushDockEl) brushDockEl.hidden = activeCornerTab !== 'brush';
+    if (inspectorEl) inspectorEl.hidden = activeCornerTab !== 'body';
+    if (layersPaneEl) layersPaneEl.hidden = activeCornerTab !== 'layers';
+    if (drawerTitleEl && activeCornerTab) {
+      drawerTitleEl.textContent =
+        activeCornerTab === 'brush' ? '笔刷与工具设置' :
+        activeCornerTab === 'body' ? '身材与部位配色' : '图层叠放（上盖下）';
+    }
+  }
+
   function enterExplodedMode(animate) {
     mode = 'exploded';
     hoverPartId = null;
     mountedInspectorKey = '';
     spacePanHeld = false;
+    clearSelection();
     restoreAutoHindPose();
     if (workbenchEl) {
       workbenchEl.classList.remove('mode-hero');
@@ -2101,8 +2868,9 @@
     if (leftPaneEl) leftPaneEl.hidden = false;
     if (partHeaderEl) partHeaderEl.classList.remove('is-part');
     if (partBackBtn) partBackBtn.hidden = true;
-    if (brushDockEl) brushDockEl.hidden = true;
-    if (inspectorEl) inspectorEl.hidden = true;
+    if (quickToolsEl) quickToolsEl.hidden = true;
+    if (floatingCornerEl) floatingCornerEl.hidden = true;
+    setCornerTab(null);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(false);
     resetPartViewport();
     updatePartPillsUI();
@@ -2127,6 +2895,7 @@
     selectedPartId = partId;
     mode = 'part';
     hoverPartId = null;
+    clearSelection();
     mirrorEnabled = PART_BY_ID[partId].defaultMirror;
     if (mirrorToggleEl) {
       mirrorToggleEl.checked = mirrorEnabled;
@@ -2147,8 +2916,9 @@
     if (leftPaneEl) leftPaneEl.hidden = false;
     if (partHeaderEl) partHeaderEl.classList.add('is-part');
     if (partBackBtn) partBackBtn.hidden = false;
-    if (brushDockEl) brushDockEl.hidden = false;
-    if (inspectorEl) inspectorEl.hidden = false;
+    if (quickToolsEl) quickToolsEl.hidden = false;
+    if (floatingCornerEl) floatingCornerEl.hidden = false;
+    setCornerTab(activeCornerTab);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(true);
     resetPartViewport();
 
@@ -2169,11 +2939,13 @@
     cursorCanvasPt = null;
     mountedInspectorKey = '';
     spacePanHeld = false;
+    clearSelection();
     restoreAutoHindPose();
     if (partHeaderEl) partHeaderEl.classList.remove('is-part');
     if (partBackBtn) partBackBtn.hidden = true;
-    if (brushDockEl) brushDockEl.hidden = true;
-    if (inspectorEl) inspectorEl.hidden = true;
+    if (quickToolsEl) quickToolsEl.hidden = true;
+    if (floatingCornerEl) floatingCornerEl.hidden = true;
+    setCornerTab(null);
     if (window.__kuroSetDecoDockCollapsed) window.__kuroSetDecoDockCollapsed(false);
     resetPartViewport();
     explodeT = 1;
@@ -2197,9 +2969,46 @@
   // Contextual Per-Part Inspector (2-4 Sliders + Part Colors + Gradient Toggle)
   // -------------------------------------------------------------------------
   let lastVisibleMouthHex = '#6E5C54';
+  let lastVisibleNoseHex = '#EB9CA8';
 
   function isMouthHidden(pal) {
     return !!(pal && pal.mouth && pal.mouth.a !== undefined && pal.mouth.a < 0.01);
+  }
+
+  function isNoseHidden(pal) {
+    return !!(pal && (!pal.nose || (pal.nose.a !== undefined && pal.nose.a < 0.01)));
+  }
+
+  function setNoseHidden(raw, hide) {
+    if (!raw) return;
+    if (!raw.palette) raw.palette = {};
+    if (hide) {
+      const curNose = raw.palette.nose;
+      if (curNose && Spec.isValidHex(curNose)) {
+        const parsed = Spec.parseHexColor(curNose);
+        if (parsed && parsed.a >= 0.01) lastVisibleNoseHex = curNose.slice(0, 7).toUpperCase();
+      }
+      raw.palette.nose = '#00000000';
+    } else {
+      const noseInp = inspectorEl && inspectorEl.querySelector('[data-ctx-pal="nose"]');
+      raw.palette.nose = (noseInp && Spec.isValidHex(noseInp.value) ? noseInp.value.toUpperCase() : lastVisibleNoseHex) || '#EB9CA8';
+    }
+  }
+
+  function setMouthHidden(raw, hide) {
+    if (!raw) return;
+    if (!raw.palette) raw.palette = {};
+    if (hide) {
+      const curMouth = raw.palette.mouth;
+      if (curMouth && Spec.isValidHex(curMouth)) {
+        const parsed = Spec.parseHexColor(curMouth);
+        if (parsed && parsed.a >= 0.01) lastVisibleMouthHex = curMouth.slice(0, 7).toUpperCase();
+      }
+      raw.palette.mouth = '#00000000';
+    } else {
+      const mouthInp = inspectorEl && inspectorEl.querySelector('[data-ctx-pal="mouth"]');
+      raw.palette.mouth = (mouthInp && Spec.isValidHex(mouthInp.value) ? mouthInp.value.toUpperCase() : lastVisibleMouthHex) || '#6E5C54';
+    }
   }
 
   function getPaletteHexForChip(pal, key) {
@@ -2211,6 +3020,10 @@
     if (key === 'irisLeft') return colorToHex(pal.irisLeft || pal.iris, '#D2E83A');
     if (key === 'irisRight') return colorToHex(pal.irisRight || pal.iris, '#D2E83A');
     if (key === 'pupil') return colorToHex(pal.pupil || pal.pupilLeft, '#141416');
+    if (key === 'nose') {
+      if (pal.nose && !isNoseHidden(pal)) return colorToHex(pal.nose, lastVisibleNoseHex);
+      return lastVisibleNoseHex;
+    }
     if (key === 'mouth') {
       if (pal.mouth && !isMouthHidden(pal)) return colorToHex(pal.mouth, lastVisibleMouthHex);
       return lastVisibleMouthHex;
@@ -2234,6 +3047,10 @@
     const hideMouthCb = inspectorEl.querySelector('#ctx-hide-mouth');
     if (hideMouthCb) {
       hideMouthCb.checked = isMouthHidden(pal);
+    }
+    const hideNoseCb = inspectorEl.querySelector('#ctx-hide-nose');
+    if (hideNoseCb) {
+      hideNoseCb.checked = isNoseHidden(pal);
     }
 
     const gFrom = inspectorEl.querySelector('#ctx-grad-from');
@@ -2294,8 +3111,14 @@
     }
     const gradStop = hasGrad && typeof rawGrad.stop === 'number' ? rawGrad.stop : 0.52;
 
+    const partLayers = ensurePartLayers(raw, partId);
+    const activeLayer = getActiveLayer(raw, partId);
+    const layerSig = partLayers.map((l) => l.id + ':' + (l.visible !== false ? '1' : '0') + ':' + countLayerMarks(raw, partId, l.id)).join(',');
+    const noseHidFlag = partId === 'head' ? (isNoseHidden(pal) ? '1' : '0') : '0';
+    const mouthHidFlag = partId === 'head' ? (isMouthHidden(pal) ? '1' : '0') : '0';
+
     // Preserve live DOM inputs while dragging sliders / picking colors on the same part!
-    const nextKey = partId + '|' + (hasGrad ? '1' : '0');
+    const nextKey = partId + '|' + (hasGrad ? '1' : '0') + '|' + (activeLayer ? activeLayer.id : '') + '|' + layerSig + '|' + noseHidFlag + mouthHidFlag;
     if (mountedInspectorKey === nextKey && inspectorEl.childElementCount > 0) {
       syncInspectorValues(skin, gradFrom, gradTo, gradStop);
       return;
@@ -2327,15 +3150,23 @@
         sliderRow('伸出长度', 'hindLegReach', 0.75, 1.35, 0.02, shape.hindLegReach || 1.0, '×');
     } else if (partId === 'head') {
       const mouthHidden = isMouthHidden(pal);
+      const noseHidden = isNoseHidden(pal);
       if (pal.mouth && !mouthHidden) {
         lastVisibleMouthHex = colorToHex(pal.mouth, lastVisibleMouthHex);
+      }
+      if (pal.nose && !noseHidden) {
+        lastVisibleNoseHex = colorToHex(pal.nose, lastVisibleNoseHex);
       }
       colorsHtml =
         colorChip('头部底色', 'headBody', colorToHex(pal.headBody || pal.body, '#1A1A1E')) +
         colorChip('左眼', 'irisLeft', colorToHex(pal.irisLeft || pal.iris, '#D2E83A')) +
         colorChip('右眼', 'irisRight', colorToHex(pal.irisRight || pal.iris, '#D2E83A')) +
         colorChip('瞳孔', 'pupil', colorToHex(pal.pupil || pal.pupilLeft, '#141416')) +
-        colorChip('鼻尖', 'nose', colorToHex(pal.nose, '#EB9CA8')) +
+        colorChip('鼻尖', 'nose', getPaletteHexForChip(pal, 'nose')) +
+        '<label class="ctx-grad-toggle" title="隐藏默认纯色鼻子后，可直接用画笔在鼻形虚线框内画多色/花鼻子">' +
+          '<input type="checkbox" id="ctx-hide-nose"' + (noseHidden ? ' checked' : '') + ' />' +
+          '<span>隐藏鼻子</span>' +
+        '</label>' +
         colorChip('嘴巴', 'mouth', getPaletteHexForChip(pal, 'mouth')) +
         '<label class="ctx-grad-toggle">' +
           '<input type="checkbox" id="ctx-hide-mouth"' + (mouthHidden ? ' checked' : '') + ' />' +
@@ -2370,6 +3201,64 @@
         sliderRow('尾根高低', 'tailRootY', -14, 14, 1, shape.tailRootY || 0, 'px');
     }
 
+    // Build PS-style layer stack HTML (topmost layer rendered first, matching Photoshop)
+    let layersListHtml = '';
+    if (partId === 'head') {
+      const nHid = isNoseHidden(pal);
+      const mHid = isMouthHidden(pal);
+      layersListHtml +=
+        '<div class="ctx-layer-row fixed-feature' + (nHid ? ' is-hidden' : '') + '">' +
+          '<button type="button" class="ctx-layer-eye" data-layer-feature="nose" title="' + (nHid ? '显示默认鼻子' : '隐藏默认鼻子以手绘多色鼻') + '">' + (nHid ? '🙈' : '👁') + '</button>' +
+          '<span class="ctx-layer-name">默认鼻子（置顶）</span>' +
+          '<span class="ctx-layer-badge">' + (nHid ? '已隐藏 · 可手绘' : '纯色置顶') + '</span>' +
+        '</div>' +
+        '<div class="ctx-layer-row fixed-feature' + (mHid ? ' is-hidden' : '') + '">' +
+          '<button type="button" class="ctx-layer-eye" data-layer-feature="mouth" title="' + (mHid ? '显示默认嘴巴' : '隐藏默认嘴巴') + '">' + (mHid ? '🙈' : '👁') + '</button>' +
+          '<span class="ctx-layer-name">默认嘴巴（置顶）</span>' +
+          '<span class="ctx-layer-badge">' + (mHid ? '已隐藏' : '置顶') + '</span>' +
+        '</div>';
+    }
+    for (let li = partLayers.length - 1; li >= 0; li--) {
+      const l = partLayers[li];
+      const isAct = activeLayer && l.id === activeLayer.id;
+      const isVis = l.visible !== false;
+      const cnt = countLayerMarks(raw, partId, l.id);
+      layersListHtml +=
+        '<div class="ctx-layer-row' + (isAct ? ' active' : '') + (!isVis ? ' is-hidden' : '') + '" data-layer-select="' + l.id + '">' +
+          '<button type="button" class="ctx-layer-eye" data-layer-toggle="' + l.id + '" title="' + (isVis ? '隐藏图层' : '显示图层') + '">' + (isVis ? '👁' : '🙈') + '</button>' +
+          '<span class="ctx-layer-name">' + l.name + '</span>' +
+          '<span class="ctx-layer-meta">' + cnt + ' 笔' + (isAct ? ' · 绘制中' : '') + '</span>' +
+          '<div class="ctx-layer-ops">' +
+            '<button type="button" class="ctx-layer-op" data-layer-up="' + l.id + '"' + (li === partLayers.length - 1 ? ' disabled' : '') + ' title="上移一层">↑</button>' +
+            '<button type="button" class="ctx-layer-op" data-layer-down="' + l.id + '"' + (li === 0 ? ' disabled' : '') + ' title="下移一层">↓</button>' +
+            '<button type="button" class="ctx-layer-op danger" data-layer-del="' + l.id + '" title="' + (partLayers.length > 1 ? '删除图层' : '清空该层笔触') + '">×</button>' +
+          '</div>' +
+        '</div>';
+    }
+    layersListHtml +=
+      '<div class="ctx-layer-row base-layer">' +
+        '<span class="ctx-layer-dot"></span>' +
+        '<span class="ctx-layer-name">底色 / 渐变层</span>' +
+        '<span class="ctx-layer-meta">底层</span>' +
+      '</div>';
+
+    const layersPanelHtml =
+      '<div class="ctx-layers-panel">' +
+        '<div class="ctx-layers-head">' +
+          '<span class="ctx-layers-title">图层叠放（上盖下）</span>' +
+          '<div class="ctx-layers-actions">' +
+            (partId === 'head'
+              ? '<button type="button" class="mini-btn" id="ctx-layer-nose-paint" title="隐藏默认纯色鼻子并新建顶层画多色/花鼻子">+ 鼻子上色层</button>'
+              : '') +
+            '<button type="button" class="mini-btn" id="ctx-layer-add">+ 新建图层</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ctx-layers-list">' + layersListHtml + '</div>' +
+      '</div>';
+
+    const layersHostEl = layersPaneEl || inspectorEl;
+    if (layerCountEl) layerCountEl.textContent = String(partLayers.length);
+
     inspectorEl.innerHTML =
       '<div class="ctx-colors-row">' +
         colorsHtml +
@@ -2386,6 +3275,12 @@
           '</div>'
         : '') +
       '<div class="ctx-sliders-grid">' + slidersHtml + '</div>';
+
+    if (layersPaneEl) {
+      layersPaneEl.innerHTML = layersPanelHtml;
+    } else {
+      inspectorEl.innerHTML += layersPanelHtml;
+    }
 
     // Bind palette inputs
     const pInputs = inspectorEl.querySelectorAll('[data-ctx-pal]');
@@ -2411,6 +3306,11 @@
         } else if (key === 'body' || key === 'headBody') {
           r.palette[key] = val;
           delete r.palette.bodyShade;
+        } else if (key === 'nose') {
+          r.palette.nose = val;
+          lastVisibleNoseHex = val;
+          const hideNoseCb = inspectorEl.querySelector('#ctx-hide-nose');
+          if (hideNoseCb && hideNoseCb.checked) hideNoseCb.checked = false;
         } else if (key === 'mouth') {
           r.palette.mouth = val;
           lastVisibleMouthHex = val;
@@ -2433,24 +3333,148 @@
       pInputs[i].addEventListener('change', function () { notifyChange(true); });
     }
 
+    const hideNoseCheck = inspectorEl.querySelector('#ctx-hide-nose');
+    if (hideNoseCheck) {
+      hideNoseCheck.addEventListener('change', function () {
+        const r = getRaw();
+        if (!r) return;
+        setNoseHidden(r, this.checked);
+        notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
     const hideMouthCheck = inspectorEl.querySelector('#ctx-hide-mouth');
     if (hideMouthCheck) {
       hideMouthCheck.addEventListener('change', function () {
         const r = getRaw();
         if (!r) return;
-        if (!r.palette) r.palette = {};
-        if (this.checked) {
-          const curMouth = r.palette.mouth;
-          if (curMouth && Spec.isValidHex(curMouth)) {
-            const parsed = Spec.parseHexColor(curMouth);
-            if (parsed && parsed.a >= 0.01) lastVisibleMouthHex = curMouth.slice(0, 7).toUpperCase();
-          }
-          r.palette.mouth = '#00000000';
-        } else {
-          const mouthInp = inspectorEl.querySelector('[data-ctx-pal="mouth"]');
-          r.palette.mouth = (mouthInp && Spec.isValidHex(mouthInp.value) ? mouthInp.value.toUpperCase() : lastVisibleMouthHex) || '#6E5C54';
-        }
+        setMouthHidden(r, this.checked);
         notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
+    // Bind PS-style layer panel interactions (mounted inside layersPaneEl)
+    const addLayerBtn = layersHostEl.querySelector('#ctx-layer-add');
+    if (addLayerBtn) {
+      addLayerBtn.addEventListener('click', function () {
+        const r = getRaw();
+        if (!r) return;
+        const created = createPartLayer(r, partId);
+        notifyChange(true);
+        renderPartInspector();
+        const api = API();
+        if (api) api.showToast('已新建并切换到「' + created.name + '」');
+      });
+    }
+    const nosePaintBtn = layersHostEl.querySelector('#ctx-layer-nose-paint');
+    if (nosePaintBtn) {
+      nosePaintBtn.addEventListener('click', function () {
+        const r = getRaw();
+        if (!r) return;
+        setNoseHidden(r, true);
+        const layers = ensurePartLayers(r, 'head');
+        let noseLayer = layers.find((l) => l.name === '鼻子上色层');
+        if (!noseLayer) {
+          noseLayer = createPartLayer(r, 'head', '鼻子上色层');
+        } else {
+          noseLayer.visible = true;
+          activeLayerByPart.head = noseLayer.id;
+        }
+        syncPartMarksByLayers(r, 'head');
+        notifyChange(true);
+        renderPartInspector();
+        const api = API();
+        if (api) api.showToast('已隐藏默认鼻子并切到「鼻子上色层」，现在可在鼻形虚线框内自由画多色鼻子');
+      });
+    }
+
+    const featEyes = layersHostEl.querySelectorAll('[data-layer-feature]');
+    for (let i = 0; i < featEyes.length; i++) {
+      featEyes[i].addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const feat = this.dataset.layerFeature;
+        const r = getRaw();
+        const sk = getSkin();
+        if (!r || !sk) return;
+        if (feat === 'nose') setNoseHidden(r, !isNoseHidden(sk.palette));
+        else if (feat === 'mouth') setMouthHidden(r, !isMouthHidden(sk.palette));
+        notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
+    const layerRows = layersHostEl.querySelectorAll('[data-layer-select]');
+    for (let i = 0; i < layerRows.length; i++) {
+      layerRows[i].addEventListener('click', function () {
+        activeLayerByPart[partId] = this.dataset.layerSelect;
+        renderPartInspector();
+      });
+    }
+
+    const toggleEyes = layersHostEl.querySelectorAll('[data-layer-toggle]');
+    for (let i = 0; i < toggleEyes.length; i++) {
+      toggleEyes[i].addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const lid = this.dataset.layerToggle;
+        const r = getRaw();
+        if (!r) return;
+        const layers = ensurePartLayers(r, partId);
+        const target = layers.find((l) => l.id === lid);
+        if (!target) return;
+        target.visible = target.visible === false ? true : false;
+        syncPartMarksByLayers(r, partId);
+        notifyChange(true);
+        renderPartInspector();
+      });
+    }
+
+    const moveLayer = (lid, delta) => {
+      const r = getRaw();
+      if (!r) return;
+      const layers = ensurePartLayers(r, partId);
+      const idx = layers.findIndex((l) => l.id === lid);
+      const nextIdx = idx + delta;
+      if (idx === -1 || nextIdx < 0 || nextIdx >= layers.length) return;
+      const tmp = layers[idx];
+      layers[idx] = layers[nextIdx];
+      layers[nextIdx] = tmp;
+      syncPartMarksByLayers(r, partId);
+      notifyChange(true);
+      renderPartInspector();
+    };
+    const upBtns = layersHostEl.querySelectorAll('[data-layer-up]');
+    for (let i = 0; i < upBtns.length; i++) {
+      upBtns[i].addEventListener('click', function (ev) { ev.stopPropagation(); moveLayer(this.dataset.layerUp, 1); });
+    }
+    const downBtns = layersHostEl.querySelectorAll('[data-layer-down]');
+    for (let i = 0; i < downBtns.length; i++) {
+      downBtns[i].addEventListener('click', function (ev) { ev.stopPropagation(); moveLayer(this.dataset.layerDown, -1); });
+    }
+
+    const delBtns = layersHostEl.querySelectorAll('[data-layer-del]');
+    for (let i = 0; i < delBtns.length; i++) {
+      delBtns[i].addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        const lid = this.dataset.layerDel;
+        const r = getRaw();
+        if (!r) return;
+        const layers = ensurePartLayers(r, partId);
+        const spaces = getPartSpaces(partId);
+        if (Array.isArray(r.marks)) {
+          r.marks = r.marks.filter((m) => !(m && spaces.indexOf(m.space) !== -1 && m._layerId === lid));
+        }
+        if (layers.length > 1) {
+          const idx = layers.findIndex((l) => l.id === lid);
+          if (idx !== -1) layers.splice(idx, 1);
+          if (activeLayerByPart[partId] === lid) {
+            activeLayerByPart[partId] = layers[Math.min(idx, layers.length - 1)].id;
+          }
+        }
+        syncPartMarksByLayers(r, partId);
+        notifyChange(true);
+        renderPartInspector();
       });
     }
 
@@ -2607,6 +3631,69 @@
 
       if (e.button !== 0) return;
 
+      if (activeTool === 'select') {
+        const raw = getRaw();
+        const wPt = screenToWorldPt(sPt);
+        if (!raw) return;
+        const effScale = Math.max(0.25, fitScale * viewZoom);
+        const curBox = selectedItems.length ? computeSelectionWorldBBox(raw, skin) : null;
+        const handle = hitTestSelectionHandle(wPt, curBox, effScale);
+        if (handle && curBox) {
+          const cx = (curBox.minX + curBox.maxX) * 0.5;
+          const cy = (curBox.minY + curBox.maxY) * 0.5;
+          selDrag = {
+            mode: 'scale',
+            handle,
+            centerW: { x: cx, y: cy },
+            startDist: Math.max(8, Math.hypot(wPt.x - cx, wPt.y - cy)),
+            startW: wPt,
+            curW: wPt,
+            snapshots: snapshotSelectedItems(raw),
+            moved: false
+          };
+          requestRedraw();
+          return;
+        }
+        if (curBox && wPt.x >= curBox.minX && wPt.x <= curBox.maxX && wPt.y >= curBox.minY && wPt.y <= curBox.maxY && !e.shiftKey) {
+          selDrag = {
+            mode: 'move',
+            startW: wPt,
+            curW: wPt,
+            snapshots: snapshotSelectedItems(raw),
+            moved: false
+          };
+          requestRedraw();
+          return;
+        }
+        const hit = hitTestPatternAt(raw, skin, selectedPartId, wPt);
+        if (hit) {
+          if (e.shiftKey) {
+            const existsIdx = selectedItems.findIndex((it) => it.type === hit.type && it.index === hit.index);
+            if (existsIdx !== -1) selectedItems.splice(existsIdx, 1);
+            else selectedItems.push(hit);
+          } else {
+            selectedItems = [hit];
+          }
+          updateSelectionBarUI();
+          selDrag = {
+            mode: 'move',
+            startW: wPt,
+            curW: wPt,
+            snapshots: snapshotSelectedItems(raw),
+            moved: false
+          };
+          requestRedraw();
+          return;
+        }
+        if (!e.shiftKey) {
+          selectedItems = [];
+          updateSelectionBarUI();
+        }
+        selDrag = { mode: 'marquee', startW: wPt, curW: wPt };
+        requestRedraw();
+        return;
+      }
+
       if (activeTool === 'eyedropper') {
         const picked = sampleColorAtCanvasPt(sPt);
         setBrushColor(picked);
@@ -2686,9 +3773,43 @@
       const wPt = screenToWorldPt(sPt);
       cursorCanvasPt = wPt;
 
+      if (activeTool === 'select' && selDrag) {
+        const raw = getRaw();
+        if (!raw) return;
+        if (selDrag.mode === 'marquee') {
+          selDrag.curW = wPt;
+          requestRedraw();
+          return;
+        }
+        if (selDrag.mode === 'move') {
+          selDrag.curW = wPt;
+          if (Math.hypot(wPt.x - selDrag.startW.x, wPt.y - selDrag.startW.y) > 0.6) selDrag.moved = true;
+          applySelectionMove(raw, selectedPartId, selDrag.snapshots, selDrag.startW, wPt);
+          notifyChange(false);
+          return;
+        }
+        if (selDrag.mode === 'scale') {
+          const curDist = Math.max(4, Math.hypot(wPt.x - selDrag.centerW.x, wPt.y - selDrag.centerW.y));
+          const factor = curDist / selDrag.startDist;
+          if (Math.abs(factor - 1) > 0.01) selDrag.moved = true;
+          applySelectionScale(raw, selDrag.snapshots, factor);
+          notifyChange(false);
+          return;
+        }
+      }
+
       if (!drawing) {
         if (panToolActive || spacePanHeld) {
           canvas.style.cursor = 'grab';
+        } else if (activeTool === 'select') {
+          const raw = getRaw();
+          const effScale = Math.max(0.25, fitScale * viewZoom);
+          const box = (raw && selectedItems.length) ? computeSelectionWorldBBox(raw, skin) : null;
+          const h = hitTestSelectionHandle(wPt, box, effScale);
+          if (h === 'nw' || h === 'se') canvas.style.cursor = 'nwse-resize';
+          else if (h === 'ne' || h === 'sw') canvas.style.cursor = 'nesw-resize';
+          else if (box && wPt.x >= box.minX && wPt.x <= box.maxX && wPt.y >= box.minY && wPt.y <= box.maxY) canvas.style.cursor = 'move';
+          else canvas.style.cursor = 'default';
         } else {
           canvas.style.cursor = activeTool === 'eyedropper' || activeTool === 'bucket' ? 'crosshair' : 'none';
         }
@@ -2721,7 +3842,54 @@
         panPointerId = null;
         panStart = null;
         if (mode === 'part') {
-          canvas.style.cursor = (panToolActive || spacePanHeld) ? 'grab' : (activeTool === 'eyedropper' || activeTool === 'bucket' ? 'crosshair' : 'none');
+          canvas.style.cursor = (panToolActive || spacePanHeld) ? 'grab' : (activeTool === 'select' ? 'default' : (activeTool === 'eyedropper' || activeTool === 'bucket' ? 'crosshair' : 'none'));
+        }
+        requestRedraw();
+        return;
+      }
+      if (activeTool === 'select' && selDrag) {
+        const drag = selDrag;
+        selDrag = null;
+        const raw = getRaw();
+        if (drag.mode === 'marquee' && raw && skin) {
+          const x0 = Math.min(drag.startW.x, drag.curW.x);
+          const x1 = Math.max(drag.startW.x, drag.curW.x);
+          const y0 = Math.min(drag.startW.y, drag.curW.y);
+          const y1 = Math.max(drag.startW.y, drag.curW.y);
+          if (x1 - x0 > 3 || y1 - y0 > 3) {
+            const partSpaces = getPartSpaces(selectedPartId);
+            const layers = ensurePartLayers(raw, selectedPartId);
+            const activeLayer = getActiveLayer(raw, selectedPartId);
+            const hitsAll = [];
+            const hitsActive = [];
+            const seenIdx = new Set();
+            if (Array.isArray(raw.marks)) {
+              for (let i = 0; i < raw.marks.length; i++) {
+                const m = raw.marks[i];
+                if (!m || m._hidden || partSpaces.indexOf(m.space) === -1 || !m.points || !m.points.length) continue;
+                let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+                for (let j = 0; j < m.points.length; j++) {
+                  const wp = partToWorld(selectedPartId, m.space, { x: m.points[j][0], y: m.points[j][1] }, skin);
+                  if (wp.x < bMinX) bMinX = wp.x; if (wp.x > bMaxX) bMaxX = wp.x;
+                  if (wp.y < bMinY) bMinY = wp.y; if (wp.y > bMaxY) bMaxY = wp.y;
+                }
+                if (bMaxX >= x0 && bMinX <= x1 && bMaxY >= y0 && bMinY <= y1) {
+                  if (seenIdx.has(i)) continue;
+                  const mirIdx = findMirrorItemIndex(raw, 'mark', i, selectedPartId);
+                  if (mirIdx >= 0) seenIdx.add(mirIdx);
+                  seenIdx.add(i);
+                  const entry = { type: 'mark', index: i, mirrorIndex: mirIdx };
+                  hitsAll.push(entry);
+                  if (activeLayer && (!m._layerId || m._layerId === activeLayer.id)) hitsActive.push(entry);
+                }
+              }
+            }
+            const chosen = (layers.length > 1 && hitsActive.length > 0) ? hitsActive : hitsAll;
+            selectedItems = chosen;
+            updateSelectionBarUI();
+          }
+        } else if ((drag.mode === 'move' || drag.mode === 'scale') && drag.moved) {
+          notifyChange(true);
         }
         requestRedraw();
         return;
@@ -2849,23 +4017,42 @@
   // -------------------------------------------------------------------------
   function setTool(tool) {
     activeTool = tool;
-    if (tool !== 'eyedropper' && tool !== 'bucket') prevDrawTool = tool;
+    if (tool !== 'eyedropper' && tool !== 'bucket' && tool !== 'select' && tool !== 'eraser') {
+      prevDrawTool = tool;
+    }
+    if (tool !== 'select') clearSelection();
     if (panToolActive) setPanToolActive(false);
     if (tool === 'bucket') {
       const api = API();
       if (api) api.showToast('油漆桶：点击内耳、花纹色块或底色区域直接上色');
+    } else if (tool === 'select') {
+      const api = API();
+      if (api) api.showToast('选择框：点击或框选图案，拖动改位置、拖四角圆点缩放');
     }
-    if (!brushDockEl) return;
-    const btns = brushDockEl.querySelectorAll('[data-brush-tool]');
-    for (let i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('active', btns[i].dataset.brushTool === tool);
+    if (brushDockEl) {
+      const btns = brushDockEl.querySelectorAll('[data-brush-tool]');
+      for (let i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].dataset.brushTool === tool);
+      }
     }
+    if (quickToolsEl) {
+      const qBtns = quickToolsEl.querySelectorAll('[data-quick-tool]');
+      const qKey = tool === 'select' ? 'select' : (tool === 'eraser' ? 'eraser' : 'draw');
+      for (let i = 0; i < qBtns.length; i++) {
+        qBtns[i].classList.toggle('active', qBtns[i].dataset.quickTool === qKey);
+      }
+    }
+    if (canvas && mode === 'part' && !panToolActive && !spacePanHeld) {
+      canvas.style.cursor = tool === 'select' ? 'default' : (tool === 'eyedropper' || tool === 'bucket' ? 'crosshair' : 'none');
+    }
+    requestRedraw();
   }
 
   function setBrushColor(hex) {
     if (!Spec.isValidHex(hex)) return;
     brushColor = hex.toUpperCase();
     if (colorInput) colorInput.value = brushColor.slice(0, 7);
+    if (brushDotEl) brushDotEl.style.background = brushColor;
     if (swatchesWrap) {
       const dots = swatchesWrap.querySelectorAll('.exploded-swatch');
       for (let i = 0; i < dots.length; i++) {
@@ -2888,6 +4075,7 @@
     if (raw.partGradients) {
       for (let i = 0; i < spaces.length; i++) delete raw.partGradients[spaces[i]];
     }
+    clearSelection();
     notifyChange(true);
     renderPartInspector();
     const api = API();
@@ -2913,7 +4101,50 @@
     clearPartBtn = document.getElementById('btn-exploded-clear-part');
     brushDockEl = document.getElementById('exploded-brush-dock');
     inspectorEl = document.getElementById('exploded-part-inspector');
+    layersPaneEl = document.getElementById('exploded-layers-pane');
+    quickToolsEl = document.getElementById('ps-quick-tools');
+    floatingCornerEl = document.getElementById('ps-floating-corner');
+    cornerDrawerEl = document.getElementById('ps-corner-drawer');
+    drawerTitleEl = document.getElementById('ps-drawer-title');
+    brushDotEl = document.getElementById('ps-brush-dot');
+    layerCountEl = document.getElementById('ps-layer-count');
+    selectionBarEl = document.getElementById('ps-selection-bar');
+    selInfoEl = document.getElementById('ps-sel-info');
     skeletonToggleBtn = document.getElementById('btn-toggle-skeleton');
+
+    // Bind PS top-right corner tabs & close button
+    if (floatingCornerEl) {
+      const cornerTabs = floatingCornerEl.querySelectorAll('[data-ps-tab]');
+      for (let i = 0; i < cornerTabs.length; i++) {
+        cornerTabs[i].addEventListener('click', function () {
+          const tab = this.dataset.psTab;
+          setCornerTab(activeCornerTab === tab ? null : tab);
+        });
+      }
+      const closeCornerBtn = document.getElementById('btn-ps-drawer-close');
+      if (closeCornerBtn) closeCornerBtn.addEventListener('click', () => setCornerTab(null));
+    }
+
+    // Bind PS top-left quick mode bar (Select / Brush / Eraser)
+    if (quickToolsEl) {
+      const qBtns = quickToolsEl.querySelectorAll('[data-quick-tool]');
+      for (let i = 0; i < qBtns.length; i++) {
+        qBtns[i].addEventListener('click', function () {
+          const q = this.dataset.quickTool;
+          if (q === 'select') setTool('select');
+          else if (q === 'eraser') setTool('eraser');
+          else setTool(prevDrawTool || 'calligraphy');
+        });
+      }
+    }
+
+    // Bind Selection floating bar buttons
+    const btnSelDup = document.getElementById('btn-sel-dup');
+    const btnSelDel = document.getElementById('btn-sel-del');
+    const btnSelClear = document.getElementById('btn-sel-clear');
+    if (btnSelDup) btnSelDup.addEventListener('click', duplicateSelection);
+    if (btnSelDel) btnSelDel.addEventListener('click', deleteSelection);
+    if (btnSelClear) btnSelClear.addEventListener('click', clearSelection);
     sizeInput = document.getElementById('exploded-brush-size');
     sizeValEl = document.getElementById('exploded-brush-size-val');
     alphaInput = document.getElementById('exploded-brush-alpha');
@@ -2957,6 +4188,26 @@
       } else if (e.key === '0' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         resetPartViewport();
+      } else if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setTool('select');
+      } else if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setTool(prevDrawTool || 'calligraphy');
+      } else if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setTool('eraser');
+      } else if (e.key === 'Escape') {
+        if (selectedItems.length > 0) { clearSelection(); e.preventDefault(); }
+        else if (activeCornerTab) { setCornerTab(null); e.preventDefault(); }
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && activeTool === 'select' && selectedItems.length > 0) {
+        e.preventDefault();
+        deleteSelection();
+      } else if (activeTool === 'select' && selectedItems.length > 0 &&
+                 (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowLeft') nudgeSelection(-step, 0);
+        else if (e.key === 'ArrowRight') nudgeSelection(step, 0);
+        else if (e.key === 'ArrowUp') nudgeSelection(0, -step);
+        else if (e.key === 'ArrowDown') nudgeSelection(0, step);
       }
     });
     document.addEventListener('keyup', (e) => {

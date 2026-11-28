@@ -1078,7 +1078,38 @@
     ctx.restore();
   }
 
-  function drawTail(ctx, seatX, seatY, state, skin, outlineOnly) {
+  function splitCubicBezier(p0, p1, p2, p3, t) {
+    const lerp = (a, b) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    const a = lerp(p0, p1), b = lerp(p1, p2), c = lerp(p2, p3);
+    const d = lerp(a, b), e = lerp(b, c);
+    const s = lerp(d, e);
+    return {
+      first: { p0, p1: a, p2: d, p3: s },
+      second: { p0: s, p1: e, p2: c, p3 }
+    };
+  }
+
+  function findTailFrontSplitT(curve, seatX, skin) {
+    const bw = (skin && skin.shape && skin.shape.bodyWidth) || 1;
+    const bodyRightX = seatX + 46 * bw;
+    let bestT = 0.28;
+    let maxX = -Infinity;
+    let maxXT = 0.28;
+    for (let i = 10; i <= 45; i++) {
+      const t = i / 100;
+      const p = curve.at({ x: t * 100, y: 0 });
+      if (p.x > maxX) {
+        maxX = p.x;
+        maxXT = t;
+      }
+      if (p.x >= bodyRightX && bestT === 0.28) {
+        bestT = t;
+      }
+    }
+    return clamp(Math.max(bestT, Math.min(maxXT, 0.34)), 0.20, 0.42);
+  }
+
+  function drawTail(ctx, seatX, seatY, state, skin, outlineOnly, segmentMode) {
     const curve = tailCurve(seatX, seatY, state, skin);
     const width = isDazedSkin(skin) ? 13.0 : (getBuild(skin).tailWidth * skin.shape.tailThickness);
     const lie = clamp(state.lieIntensity || 0, 0, 1);
@@ -1097,54 +1128,99 @@
       ctx.restore();
       return;
     }
+
+    const mode = segmentMode || 'full'; // 'full' | 'backHalf' | 'frontHalf'
+    const splitT = mode === 'full' ? 0 : findTailFrontSplitT(curve, seatX, skin);
+    const tStart = mode === 'frontHalf' ? splitT : 0;
+    const tEnd = mode === 'backHalf' ? Math.min(1, splitT + 0.04) : 1;
+
     const tailGrad = skin.partGradients && skin.partGradients.tail;
+    let tailStrokeStyle;
     if (tailGrad) {
       const tg = ctx.createLinearGradient(curve.root.x, curve.root.y, curve.tip.x, curve.tip.y);
       tg.addColorStop(0, rgbaToCss(tailGrad.from));
       tg.addColorStop(clamp(tailGrad.stop || 0.5, 0.1, 0.9), rgbaToCss(tailGrad.to));
       tg.addColorStop(1, rgbaToCss(tailGrad.to));
-      ctx.strokeStyle = tg;
+      tailStrokeStyle = tg;
     } else {
-      ctx.strokeStyle = rgbaToCss(skin.palette.tail);
+      tailStrokeStyle = rgbaToCss(skin.palette.tail);
     }
-    ctx.lineWidth = width;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(curve.root.x, curve.root.y);
-    ctx.bezierCurveTo(curve.c1.x, curve.c1.y, curve.c2.x, curve.c2.y, curve.tip.x, curve.tip.y);
-    ctx.stroke();
 
-    if (lieS > 0.35) {
+    const strokeSubCurve = (sub, cap) => {
+      ctx.lineWidth = width;
+      ctx.lineCap = cap;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sub.p0.x, sub.p0.y);
+      ctx.bezierCurveTo(sub.p1.x, sub.p1.y, sub.p2.x, sub.p2.y, sub.p3.x, sub.p3.y);
+      ctx.stroke();
+    };
+
+    ctx.strokeStyle = tailStrokeStyle;
+    if (mode === 'full') {
+      strokeSubCurve({ p0: curve.root, p1: curve.c1, p2: curve.c2, p3: curve.tip }, 'round');
+    } else if (mode === 'backHalf') {
+      const sp = splitCubicBezier(curve.root, curve.c1, curve.c2, curve.tip, tEnd).first;
+      // Butt cap at the split point so it hides cleanly under the frontHalf seam; round cap at root
+      strokeSubCurve(sp, 'butt');
+      ctx.fillStyle = tailStrokeStyle;
+      ctx.beginPath();
+      ctx.arc(curve.root.x, curve.root.y, width * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const sp = splitCubicBezier(curve.root, curve.c1, curve.c2, curve.tip, tStart).second;
+      // Butt cap at the split point (outside body) + round cap at tip
+      strokeSubCurve(sp, 'butt');
+      ctx.fillStyle = tailStrokeStyle;
+      ctx.beginPath();
+      ctx.arc(curve.tip.x, curve.tip.y, width * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (lieS > 0.35 && mode !== 'backHalf') {
       const rAlpha = Math.min(1.0, (lieS - 0.35) / 0.45) * 0.72;
       ctx.save();
       ctx.strokeStyle = rgbaToCss(skin.palette.crease, rAlpha);
       ctx.lineWidth = 1.45;
       ctx.lineCap = 'round';
+      const rimFull = {
+        p0: { x: curve.root.x - 4, y: curve.root.y - 3 },
+        p1: { x: curve.c1.x - 6, y: curve.c1.y - 5.5 },
+        p2: { x: curve.c2.x, y: curve.c2.y - 5.5 },
+        p3: { x: curve.tip.x + 2, y: curve.tip.y - 4.5 }
+      };
+      const rim = mode === 'frontHalf'
+        ? splitCubicBezier(rimFull.p0, rimFull.p1, rimFull.p2, rimFull.p3, tStart).second
+        : rimFull;
       ctx.beginPath();
-      ctx.moveTo(curve.root.x - 4, curve.root.y - 3);
-      ctx.bezierCurveTo(curve.c1.x - 6, curve.c1.y - 5.5, curve.c2.x, curve.c2.y - 5.5, curve.tip.x + 2, curve.tip.y - 4.5);
+      ctx.moveTo(rim.p0.x, rim.p0.y);
+      ctx.bezierCurveTo(rim.p1.x, rim.p1.y, rim.p2.x, rim.p2.y, rim.p3.x, rim.p3.y);
       ctx.stroke();
       ctx.restore();
     }
 
     if (skin.hasPartArt('tail') || skin.palette.tailTip) {
-      // Build stroked clip capsule along tail curve
+      // Build stroked clip capsule along the active segment [tStart, tEnd] of the tail curve
       ctx.save();
       const leftPts = [], rightPts = [];
       const half = width * 0.5 + 0.3;
       const steps = 24;
       for (let i = 0; i <= steps; i++) {
-        const x = (i / steps) * 100;
+        const t = tStart + (i / steps) * (tEnd - tStart);
+        const x = t * 100;
         leftPts.push(curve.at({ x, y: half / skin.shape.tailThickness }));
         rightPts.push(curve.at({ x, y: -half / skin.shape.tailThickness }));
       }
       ctx.beginPath();
       ctx.moveTo(leftPts[0].x, leftPts[0].y);
       for (let i = 1; i < leftPts.length; i++) ctx.lineTo(leftPts[i].x, leftPts[i].y);
-      // Rounded tip cap
-      const tipAngle = Math.atan2(curve.tip.y - curve.c2.y, curve.tip.x - curve.c2.x);
-      ctx.arc(curve.tip.x, curve.tip.y, half, tipAngle + Math.PI * 0.5, tipAngle - Math.PI * 0.5, true);
+      if (tEnd >= 0.999) {
+        // Rounded tip cap
+        const tipAngle = Math.atan2(curve.tip.y - curve.c2.y, curve.tip.x - curve.c2.x);
+        ctx.arc(curve.tip.x, curve.tip.y, half, tipAngle + Math.PI * 0.5, tipAngle - Math.PI * 0.5, true);
+      } else {
+        ctx.lineTo(rightPts[rightPts.length - 1].x, rightPts[rightPts.length - 1].y);
+      }
       for (let i = rightPts.length - 1; i >= 0; i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
       ctx.closePath();
       ctx.clip();
@@ -1153,17 +1229,14 @@
       for (const r of skin.regions) {
         if (r.space === 'tail') drawRegion(ctx, r, map);
       }
-      if (skin.palette.tailTip) {
-        const t = 0.78, u = 1 - t;
-        const lerp = (a, b) => ({ x: u * a.x + t * b.x, y: u * a.y + t * b.y });
-        const a = lerp(curve.root, curve.c1), b = lerp(curve.c1, curve.c2), q = lerp(curve.c2, curve.tip);
-        const d = lerp(a, b), e = lerp(b, q), s = lerp(d, e);
+      if (skin.palette.tailTip && tEnd > 0.78) {
+        const spTip = splitCubicBezier(curve.root, curve.c1, curve.c2, curve.tip, 0.78).second;
         ctx.strokeStyle = rgbaToCss(skin.palette.tailTip);
         ctx.lineWidth = width + 2;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.bezierCurveTo(e.x, e.y, q.x, q.y, curve.tip.x, curve.tip.y);
+        ctx.moveTo(spTip.p0.x, spTip.p0.y);
+        ctx.bezierCurveTo(spTip.p1.x, spTip.p1.y, spTip.p2.x, spTip.p2.y, spTip.p3.x, spTip.p3.y);
         ctx.stroke();
       }
       for (const m of skin.marks) {
@@ -1822,10 +1895,11 @@
     drawEye3D(ctx, true, yawRad, pitchRad, state, eyeThemeName, skin, scruffStartle, scruffWide);
     drawEye3D(ctx, false, yawRad, pitchRad, state, eyeThemeName, skin, scruffStartle, scruffWide);
 
+    const showNose = !!(skin.palette.nose && (skin.palette.nose.a === undefined || skin.palette.nose.a >= 0.01));
     const showMouth = !!(skin.palette.mouth && (skin.palette.mouth.a === undefined || skin.palette.mouth.a >= 0.01));
-    if (skin.palette.nose || showMouth) {
+    if (showNose || showMouth) {
       ctx.save();
-      if (skin.palette.nose) {
+      if (showNose) {
         const n = projectHead3D(0, 8.2, 29.0, yawRad, pitchRad);
         ctx.fillStyle = rgbaToCss(skin.palette.nose);
         ctx.beginPath();
@@ -6840,10 +6914,13 @@
     }
 
     if (!tailInFront) {
-      drawTail(ctx, seatX, seatY, state, skin, false);
+      drawTail(ctx, seatX, seatY, state, skin, false, 'full');
       if (hasDecos) {
         drawDecorations(ctx, seatX, seatY, headCenter, state, skin, { anchors: ['tailTip'] });
       }
+    } else {
+      // Keep the tail root cleanly tucked behind the body silhouette even when the tip sweeps forward
+      drawTail(ctx, seatX, seatY, state, skin, false, 'backHalf');
     }
 
     // 3D ears
@@ -6871,7 +6948,7 @@
     }
 
     if (tailInFront) {
-      drawTail(ctx, seatX, seatY, state, skin, false);
+      drawTail(ctx, seatX, seatY, state, skin, false, 'frontHalf');
       if (hasDecos) {
         drawDecorations(ctx, seatX, seatY, headCenter, state, skin, { anchors: ['tailTip'] });
       }
