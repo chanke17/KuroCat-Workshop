@@ -469,6 +469,50 @@
     return true;
   }
 
+  function clearAutoBakedBaseLayers(texKeys, layerNames) {
+    const keys = Array.isArray(texKeys) ? texKeys : [texKeys];
+    const names = Array.isArray(layerNames) && layerNames.length ? layerNames : [
+      '四肢渐变底色', '默认爪套', '外耳渐变', '身体分区与渐变',
+      '头部底纹与分区', '尾巴渐变与尾尖', '默认尾尖', '默认内耳', '默认眼底', '默认肉垫'
+    ];
+    let changed = false;
+    for (let i = 0; i < keys.length; i++) {
+      const tk = keys[i];
+      const p = parts[tk];
+      if (!p || !p.layers.length) continue;
+      const before = p.layers.length;
+      const kept = p.layers.filter((l) => names.indexOf(l.name) === -1);
+      if (kept.length === before) continue;
+      changed = true;
+      if (kept.length === 0) {
+        const blank = {
+          id: nextLayerId(),
+          name: '图层 1',
+          visible: true,
+          opacity: 1.0,
+          blendMode: 'normal',
+          clipToBelow: false,
+          alphaLock: false,
+          canvas: makeCanvas(p.width, p.height)
+        };
+        p.layers = [blank];
+        p.activeLayerId = blank.id;
+      } else {
+        p.layers = kept;
+        if (p.layers[0]) p.layers[0].clipToBelow = false;
+        if (!p.layers.some((l) => l.id === p.activeLayerId)) {
+          p.activeLayerId = p.layers[p.layers.length - 1].id;
+        }
+      }
+      recompositePart(tk);
+    }
+    if (changed) {
+      emitChange('layers');
+      scheduleSave();
+    }
+    return changed;
+  }
+
   function clearPartAll(texKey) {
     const p = parts[texKey];
     if (!p) return false;
@@ -1905,6 +1949,7 @@
     deleteLayer,
     clearLayer,
     clearPartAll,
+    clearAutoBakedBaseLayers,
     renameLayer,
     setLayerProp,
     moveLayer,

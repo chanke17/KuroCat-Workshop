@@ -2286,9 +2286,71 @@
         sliderRow('尾根高低', 'tailRootY', -14, 14, 1, shape.tailRootY || 0, 'px');
     }
 
+    const GRAD_PART_KEYS = {
+      head: ['head'],
+      body: ['body'],
+      ears: ['leftEar', 'rightEar'],
+      leftArm: ['leftArm'],
+      rightArm: ['rightArm'],
+      hindLeg: ['hindLeg'],
+      tail: ['tail']
+    };
+    const gradKeys = GRAD_PART_KEYS[partId] || null;
+    let gradHtml = '';
+    if (gradKeys) {
+      const primaryKey = gradKeys[0];
+      const curGrad = (raw.partGradients && raw.partGradients[primaryKey]) || null;
+      const gEnabled = !!curGrad;
+      const defaultFrom = partId === 'leftArm' || partId === 'rightArm'
+        ? colorToHex(pal.legs, '#1A1A1E')
+        : (partId === 'hindLeg' ? colorToHex(pal.hindLeg || pal.legs, '#1A1A1E')
+          : (partId === 'ears' ? colorToHex(pal.earOuter, '#1A1A1E')
+            : (partId === 'tail' ? colorToHex(pal.tail, '#1A1A1E')
+              : (partId === 'head' ? colorToHex(pal.headBody || pal.body, '#1A1A1E') : colorToHex(pal.body, '#1A1A1E')))));
+      const defaultTo = (partId === 'leftArm' || partId === 'rightArm')
+        ? colorToHex(pal.paws, '#FFFFFF')
+        : (partId === 'hindLeg' ? colorToHex(pal.hindPaw || pal.paws, '#FFFFFF') : '#FFFFFF');
+      const gFrom = curGrad && curGrad.from ? colorToHex(curGrad.from, defaultFrom) : defaultFrom;
+      const gTo = curGrad && curGrad.to ? colorToHex(curGrad.to, defaultTo) : defaultTo;
+      const gStop = curGrad && typeof curGrad.stop === 'number' ? clamp(curGrad.stop, 0.1, 0.9) : 0.55;
+      gradHtml =
+        '<div class="ctx-grad-box">' +
+          '<label class="ctx-grad-head">' +
+            '<input type="checkbox" data-ctx-grad-toggle="1"' + (gEnabled ? ' checked' : '') + ' />' +
+            '<span>部位渐变（起点 → 终点）</span>' +
+          '</label>' +
+          '<div class="ctx-grad-controls"' + (gEnabled ? '' : ' hidden') + '>' +
+            '<div class="ctx-colors-row">' +
+              '<label class="ctx-color-chip"><span>起点色</span><input type="color" data-ctx-grad-from="1" value="' + gFrom + '" /></label>' +
+              '<label class="ctx-color-chip"><span>终点色</span><input type="color" data-ctx-grad-to="1" value="' + gTo + '" /></label>' +
+            '</div>' +
+            '<label class="ctx-slider-row">' +
+              '<span class="ctx-label">过渡位置</span>' +
+              '<input type="range" data-ctx-grad-stop="1" min="0.10" max="0.90" step="0.02" value="' + gStop.toFixed(2) + '" />' +
+              '<span class="ctx-val tabular">' + Math.round(gStop * 100) + '%</span>' +
+            '</label>' +
+          '</div>' +
+        '</div>';
+    }
+
     inspectorEl.innerHTML =
       '<div class="ctx-colors-row">' + colorsHtml + '</div>' +
+      gradHtml +
       '<div class="ctx-sliders-grid">' + slidersHtml + '</div>';
+
+    const clearBakedForPaletteKey = (key) => {
+      if (!Layers || typeof Layers.clearAutoBakedBaseLayers !== 'function') return;
+      if (key === 'legs') Layers.clearAutoBakedBaseLayers(['leftArm', 'rightArm'], ['四肢渐变底色']);
+      else if (key === 'paws') Layers.clearAutoBakedBaseLayers(['leftArm', 'rightArm'], ['默认爪套']);
+      else if (key === 'hindLeg') Layers.clearAutoBakedBaseLayers(['hindLeg'], ['四肢渐变底色']);
+      else if (key === 'hindPaw') Layers.clearAutoBakedBaseLayers(['hindLeg', 'leftHindPaw', 'rightHindPaw'], ['默认爪套', '默认肉垫']);
+      else if (key === 'tail') Layers.clearAutoBakedBaseLayers(['tail'], ['尾巴渐变与尾尖']);
+      else if (key === 'earOuter') Layers.clearAutoBakedBaseLayers(['leftEar', 'rightEar'], ['外耳渐变']);
+      else if (key === 'headBody') Layers.clearAutoBakedBaseLayers(['head'], ['头部底纹与分区']);
+      else if (key === 'body') Layers.clearAutoBakedBaseLayers(['body'], ['身体分区与渐变']);
+      else if (key === 'irisLeft') Layers.clearAutoBakedBaseLayers(['leftIris'], ['默认眼底']);
+      else if (key === 'irisRight') Layers.clearAutoBakedBaseLayers(['rightIris'], ['默认眼底']);
+    };
 
     const pInputs = inspectorEl.querySelectorAll('[data-ctx-pal]');
     for (let i = 0; i < pInputs.length; i++) {
@@ -2316,9 +2378,66 @@
           r.palette[key] = val;
         }
         if (key === 'legs') r.idleLegs = 'legs';
+        clearBakedForPaletteKey(key);
         notifyChange(false);
       });
       pInputs[i].addEventListener('change', () => notifyChange(true));
+    }
+
+    if (gradKeys) {
+      const toggleEl = inspectorEl.querySelector('[data-ctx-grad-toggle]');
+      const controlsEl = inspectorEl.querySelector('.ctx-grad-controls');
+      const fromEl = inspectorEl.querySelector('[data-ctx-grad-from]');
+      const toEl = inspectorEl.querySelector('[data-ctx-grad-to]');
+      const stopEl = inspectorEl.querySelector('[data-ctx-grad-stop]');
+      const applyGrad = (commit) => {
+        const r = getRaw();
+        if (!r) return;
+        if (!r.partGradients) r.partGradients = {};
+        if (toggleEl && toggleEl.checked) {
+          const obj = {
+            from: (fromEl ? fromEl.value : '#1A1A1E').toUpperCase(),
+            to: (toEl ? toEl.value : '#FFFFFF').toUpperCase(),
+            stop: clamp(parseFloat(stopEl ? stopEl.value : '0.55') || 0.55, 0.1, 0.9)
+          };
+          for (let k = 0; k < gradKeys.length; k++) {
+            r.partGradients[gradKeys[k]] = Object.assign({}, obj);
+          }
+          if (partId === 'leftArm' || partId === 'rightArm') r.idleLegs = 'legs';
+        } else {
+          for (let k = 0; k < gradKeys.length; k++) {
+            delete r.partGradients[gradKeys[k]];
+          }
+          if (Object.keys(r.partGradients).length === 0) delete r.partGradients;
+        }
+        if (Layers && typeof Layers.clearAutoBakedBaseLayers === 'function') {
+          Layers.clearAutoBakedBaseLayers(gradKeys, ['四肢渐变底色', '外耳渐变', '身体分区与渐变', '头部底纹与分区', '尾巴渐变与尾尖']);
+        }
+        notifyChange(!!commit);
+      };
+      if (toggleEl) {
+        toggleEl.addEventListener('change', () => {
+          if (controlsEl) controlsEl.hidden = !toggleEl.checked;
+          applyGrad(true);
+        });
+      }
+      if (fromEl) {
+        fromEl.addEventListener('input', () => applyGrad(false));
+        fromEl.addEventListener('change', () => applyGrad(true));
+      }
+      if (toEl) {
+        toEl.addEventListener('input', () => applyGrad(false));
+        toEl.addEventListener('change', () => applyGrad(true));
+      }
+      if (stopEl) {
+        stopEl.addEventListener('input', () => {
+          const v = clamp(parseFloat(stopEl.value) || 0.55, 0.1, 0.9);
+          const span = stopEl.parentElement ? stopEl.parentElement.querySelector('.ctx-val') : null;
+          if (span) span.textContent = Math.round(v * 100) + '%';
+          applyGrad(false);
+        });
+        stopEl.addEventListener('change', () => applyGrad(true));
+      }
     }
 
     const sInputs = inspectorEl.querySelectorAll('[data-ctx-shape]');

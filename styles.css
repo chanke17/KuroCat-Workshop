@@ -5369,6 +5369,31 @@ textarea {
   backdrop-filter: blur(8px);
 }
 .ps-selection-bar[hidden] { display: none; }
+.ctx-grad-box {
+  margin: 6px 0 8px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: rgba(246, 241, 234, 0.72);
+  border: 1px solid rgba(130, 112, 96, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctx-grad-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3d342c;
+  cursor: pointer;
+}
+.ctx-grad-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctx-grad-controls[hidden] { display: none; }
 .ps-sel-info {
   font-weight: 600;
   color: #f6ede2;

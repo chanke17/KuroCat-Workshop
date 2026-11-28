@@ -2439,14 +2439,24 @@
     if (pal.points) {
       const mid = pal.pointsMid || pal.points;
       ctx.save();
-      roundedRectPath(ctx, bottom.x - 7.5, top.y, 15.0, bottom.y - top.y + 5.0, 6.5);
+      traceLeg();
       ctx.clip();
-      const g = ctx.createLinearGradient(top.x, top.y, bottom.x, bottom.y + 5.0);
-      g.addColorStop(0.05, rgbaToCss(pal.body, 0));
-      g.addColorStop(0.50, rgbaToCss(mid, 0.75));
-      g.addColorStop(0.82, rgbaToCss(pal.points, 1));
-      ctx.fillStyle = g;
-      ctx.fillRect(bottom.x - 9, top.y - 1, 18, bottom.y - top.y + 8);
+      const armGrad = skin.partGradients && skin.partGradients[armSpace];
+      if (armGrad) {
+        const g = ctx.createLinearGradient(top.x, top.y, bottom.x, bottom.y + 5.0);
+        g.addColorStop(0.0, rgbaToCss(armGrad.from));
+        g.addColorStop(clamp(armGrad.stop || 0.5, 0.1, 0.9), rgbaToCss(armGrad.to));
+        g.addColorStop(1.0, rgbaToCss(armGrad.to));
+        ctx.fillStyle = g;
+        ctx.fillRect(bottom.x - 16, top.y - 2, 32, bottom.y - top.y + 10);
+      } else {
+        const g = ctx.createLinearGradient(top.x, top.y, bottom.x, bottom.y + 5.0);
+        g.addColorStop(0.05, rgbaToCss(pal.body, 0));
+        g.addColorStop(0.50, rgbaToCss(mid, 0.75));
+        g.addColorStop(0.82, rgbaToCss(pal.points, 1));
+        ctx.fillStyle = g;
+        ctx.fillRect(bottom.x - 16, top.y - 2, 32, bottom.y - top.y + 10);
+      }
       if (armTex) {
         drawIdleArmPartTexture(ctx, armTex, top, bottom, sign);
       }
