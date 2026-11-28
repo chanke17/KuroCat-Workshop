@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "name": "神罚GP6",
+  "author": "Coco",
+  "colors": {
+    "mouseBody": "#000000",
+    "mouseBorder": "#000000",
+    "wheel": "#CA2B2B",
+    "base": "#7E0101",
+    "deck": "#9C2B2B",
+    "key": "#000000",
+    "keyBorder": "#B01717",
+    "accent": "#EEEAE7",
+    "darkText": false
+  }
+}

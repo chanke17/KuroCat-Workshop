@@ -1,7 +1,54 @@
 {
-  "generatedAt": "2026-11-28T04:32:20.861Z",
-  "count": 70,
+  "generatedAt": "2026-11-28T08:43:20.196Z",
+  "count": 72,
   "skins": [
+    {
+      "slug": "angel-black-cat",
+      "title": "天使小黑猫猫",
+      "author": "lusol",
+      "authorUrl": "",
+      "description": "小黑猫也会魔法",
+      "tags": [
+        "黑猫",
+        "天使",
+        "魔法"
+      ],
+      "createdAt": "2026-11-28",
+      "skinPath": "./community/angel-black-cat/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 4,
+      "regionCount": 0,
+      "sizeBytes": 59364,
+      "paletteSummary": [
+        "#696969",
+        "#FFFFFF",
+        "#D70F0F"
+      ]
+    },
+    {
+      "slug": "luoxiaohei-bootleg",
+      "title": "盗版罗小黑",
+      "author": "荼白",
+      "authorUrl": "",
+      "description": "因为很喜欢罗小黑所以手搓了一条盗版小黑，数值范围只能到这里已经尽力了，希望大家都爱小黑，罗小黑万岁！",
+      "tags": [
+        "黑猫",
+        "罗小黑"
+      ],
+      "createdAt": "2026-11-28",
+      "skinPath": "./community/luoxiaohei-bootleg/skin.kurocat",
+      "previewPath": null,
+      "previewType": null,
+      "decorationCount": 1,
+      "regionCount": 2,
+      "sizeBytes": 96692,
+      "paletteSummary": [
+        "#000000",
+        "#FAF7F1",
+        "#F9F4D2"
+      ]
+    },
     {
       "slug": "naigai-silver-shaded",
       "title": "奶盖儿",

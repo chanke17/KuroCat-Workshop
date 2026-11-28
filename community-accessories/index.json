@@ -1,7 +1,31 @@
 {
-  "generatedAt": "2026-11-27T16:24:02.207Z",
-  "count": 63,
+  "generatedAt": "2026-11-28T08:43:20.196Z",
+  "count": 64,
   "accessories": [
+    {
+      "slug": "bidiu",
+      "title": "比丢",
+      "author": "圭土土",
+      "authorUrl": "https://github.com/zyfgg-666",
+      "description": "比丢是一只团鼠，吃下东西就会变色，贪吃，误食金属或生物会暴走。",
+      "tags": [
+        "罗小黑",
+        "团鼠",
+        "贪吃",
+        "可爱"
+      ],
+      "createdAt": "2026-11-28",
+      "anchor": "headTop",
+      "offsetX": 0,
+      "offsetY": -18,
+      "scale": 0.5,
+      "rotation": 0,
+      "pngPath": "./community-accessories/bidiu/accessory.png",
+      "previewPath": null,
+      "width": 556,
+      "height": 454,
+      "sizeBytes": 219447
+    },
     {
       "slug": "angel-bell",
       "title": "天使小铃",

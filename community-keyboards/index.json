@@ -1,7 +1,33 @@
 {
-  "generatedAt": "2026-11-27T16:24:02.207Z",
-  "count": 28,
+  "generatedAt": "2026-11-28T08:43:20.196Z",
+  "count": 29,
   "keyboards": [
+    {
+      "slug": "punishment-gp68",
+      "title": "神罚GP68",
+      "author": "Coco",
+      "authorUrl": "",
+      "description": "都是我的！！！",
+      "tags": [
+        "神罚",
+        "红黑配色"
+      ],
+      "createdAt": "2026-11-28",
+      "keyboardPath": "./community-keyboards/punishment-gp68/keyboard.json",
+      "previewPath": null,
+      "colors": {
+        "mouseBody": "#000000",
+        "mouseBorder": "#000000",
+        "wheel": "#CA2B2B",
+        "base": "#7E0101",
+        "deck": "#9C2B2B",
+        "key": "#000000",
+        "keyBorder": "#B01717",
+        "accent": "#EEEAE7",
+        "darkText": false
+      },
+      "sizeBytes": 312
+    },
     {
       "slug": "angel-cloud-65",
       "title": "云端天使 65%",
