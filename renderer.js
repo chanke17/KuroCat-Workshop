@@ -5152,16 +5152,16 @@
     const armLen = 56.0;
     const frontLeftLimb = makeLimb(
       { x: headCenter.x - shoulderInX + hipLagX * 0.16, y: shoulderY },
-      { x: headCenter.x - shoulderInX + 1.5 + hipLagX * 0.30, y: shoulderY + armLen },
+      { x: headCenter.x - shoulderInX + 1.5 - carry * 20.0 + hipLagX * 0.30, y: shoulderY + armLen + carry * 4.0 },
       { x: headCenter.x - shoulderInX + hipLagX * 0.12, y: shoulderY + 3.0 },
-      { x: headCenter.x - shoulderInX - 4.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 },
+      { x: headCenter.x - shoulderInX - 4.0 - carry * 20.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 + carry * 4.0 },
       13.6, 12.4, -1.5, 0.42, -0.65, 'leftArm', false
     );
     const frontRightLimb = makeLimb(
       { x: headCenter.x + shoulderInX + hipLagX * 0.16, y: shoulderY },
-      { x: headCenter.x + shoulderInX - 1.5 + hipLagX * 0.30, y: shoulderY + armLen },
+      { x: headCenter.x + shoulderInX - 1.5 + carry * 8.0 + hipLagX * 0.30, y: shoulderY + armLen + carry * 4.0 },
       { x: headCenter.x + shoulderInX + hipLagX * 0.12, y: shoulderY + 3.0 },
-      { x: headCenter.x + shoulderInX + 4.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 },
+      { x: headCenter.x + shoulderInX + 4.0 + carry * 8.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 + carry * 4.0 },
       13.6, 12.4, 1.5, 0.42, 0.65, 'rightArm', false
     );
 
